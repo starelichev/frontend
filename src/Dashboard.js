@@ -12,7 +12,6 @@ import h1Icon from "./icons/h1.svg";
 import h2Icon from "./icons/h2.svg";
 import settingsIcon from "./icons/settings.svg";
 import profileIcon from "./icons/profile.svg";
-import questionIcon from "./icons/question.svg";
 import DeviceAccounting from "./components/DeviceAccounting";
 import DataVisualization from "./components/DataVisualization";
 import Administration from "./components/Administration";
@@ -28,10 +27,7 @@ function Dashboard() {
   const [data, setData] = useState({ objects: [] });
   const [metrics, setMetrics] = useState({
     monthlyConsumption: { electricityConsumption: 0, gasConsumption: 0 },
-    dailyConsumption: { electricityConsumption: 0, gasConsumption: 0 },
-    dayForecast: { electricityForecast: 0, gasForecast: 0 },
-    weekForecast: { electricityForecast: 0, gasForecast: 0 },
-    monthForecast: { electricityForecast: 0, gasForecast: 0 }
+    dailyConsumption: { electricityConsumption: 0, gasConsumption: 0 }
   });
   const [activeMenuItem, setActiveMenuItem] = useState(1); // 1 = Приборы учёта, 2 = Визуализация данных
   const [user, setUser] = useState(null);
@@ -172,64 +168,10 @@ function Dashboard() {
                   <span className="text-sm font-semibold">~{metrics.dailyConsumption.gasConsumption}</span>
                 </div>
               </div>
-              
-              <div data-svg-wrapper>
-                <svg width="2" height="40" viewBox="0 0 2 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M1 1L1 39" stroke="black" strokeOpacity="0.1" strokeLinecap="round"/>
-                </svg>
-              </div>
-              
-              <div className="flex flex-col items-center gap-1">
-                <div className="justify-start text-black/50 text-sm font-normal font-open-sans leading-none">Прогноз на день</div>
-                <div className="flex items-center gap-2">
-                  <img src={h1Icon} alt="h1" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.dayForecast.electricityForecast}</span>
-                  <img src={h2Icon} alt="h2" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.dayForecast.gasForecast}</span>
-                </div>
-              </div>
-              
-              <div data-svg-wrapper>
-                <svg width="2" height="40" viewBox="0 0 2 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M1 1L1 39" stroke="black" strokeOpacity="0.1" strokeLinecap="round"/>
-                </svg>
-              </div>
-              
-              <div className="flex flex-col items-center gap-1">
-                <div className="justify-start text-black/50 text-sm font-normal font-open-sans leading-none">Прогноз на неделю</div>
-                <div className="flex items-center gap-2">
-                  <img src={h1Icon} alt="h1" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.weekForecast.electricityForecast}</span>
-                  <img src={h2Icon} alt="h2" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.weekForecast.gasForecast}</span>
-                </div>
-              </div>
-              
-              <div data-svg-wrapper>
-                <svg width="2" height="40" viewBox="0 0 2 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M1 1L1 39" stroke="black" strokeOpacity="0.1" strokeLinecap="round"/>
-                </svg>
-              </div>
-              
-              <div className="flex flex-col items-center gap-1">
-                <div className="justify-start text-black/50 text-sm font-normal font-open-sans leading-none">Прогноз на месяц</div>
-                <div className="flex items-center gap-2">
-                  <img src={h1Icon} alt="h1" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.monthForecast.electricityForecast}</span>
-                  <img src={h2Icon} alt="h2" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.monthForecast.gasForecast}</span>
-                </div>
-              </div>
             </div>
 
             {/* User Menu */}
             <div className="flex items-center gap-4">
-              <div className="w-40 h-11 px-4 py-1 rounded-[100px] outline outline-1 outline-offset-[-1px] outline-gray-200 inline-flex justify-start items-center gap-2.5">
-                <div className="w-[0.84px] h-[0.67px]" />
-                  <img src={questionIcon} alt="h1" width="16" height="16" />
-                <div className="justify-start text-black text-xs font-semibold font-open-sans">Ручной опрос</div>
-              </div>
-              
               <div className="w-40 h-11 px-4 py-1 rounded-[100px] outline outline-1 outline-offset-[-1px] outline-gray-200 inline-flex justify-start items-center gap-2.5 cursor-pointer" onClick={() => navigate('/settings')}>
                 <div className="w-[0.84px] h-[0.67px]" />
                   <img src={settingsIcon} alt="h1" width="16" height="16" />

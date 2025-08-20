@@ -7,11 +7,11 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 function DataVisualization() {
   const [activeTab, setActiveTab] = useState('graph'); // 'graph' or 'table'
   const [period, setPeriod] = useState('last2days');
-  const [dateFrom, setDateFrom] = useState('06.09.25');
-  const [dateTo, setDateTo] = useState('08.09.25');
+  const [dateFrom, setDateFrom] = useState('2025-09-06');
+  const [dateTo, setDateTo] = useState('2025-09-08');
   const [selectedObjects, setSelectedObjects] = useState([]);
   const [selectedDeviceTypes, setSelectedDeviceTypes] = useState([]);
-  const [selectedMeters, setSelectedMeters] = useState(null); // Изменено с [] на null для единичного выбора
+  const [selectedMeters, setSelectedMeters] = useState([]); // Изменено с null на [] для множественного выбора
   const [selectedParameters, setSelectedParameters] = useState([]);
   const [data, setData] = useState([]);
   const [objects, setObjects] = useState([]);
@@ -19,7 +19,7 @@ function DataVisualization() {
   const [parameters, setParameters] = useState([]);
   const [filteredMeters, setFilteredMeters] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [maxPoints, setMaxPoints] = useState(100);
+  const [aggregation, setAggregation] = useState('hour'); // 'minute', 'hour', 'day'
 
   useEffect(() => {
     fetchObjects();
@@ -27,7 +27,7 @@ function DataVisualization() {
   }, []);
 
   useEffect(() => {
-    if (selectedMeters) {
+    if (selectedMeters && selectedMeters.length > 0) {
       fetchParameters();
     }
   }, [selectedMeters, filteredMeters]);
@@ -40,7 +40,7 @@ function DataVisualization() {
       .filter(device => selectedDeviceTypes.length === 0 || selectedDeviceTypes.includes(device.type));
     
     setFilteredMeters(filtered);
-    setSelectedMeters(null); // Сбрасываем выбранный счетчик при изменении фильтров
+    setSelectedMeters([]); // Сбрасываем выбранный счетчик при изменении фильтров
   }, [selectedObjects, selectedDeviceTypes, objects]);
 
   // Убираем автоматическую загрузку - теперь данные загружаются только по кнопке "Применить"
@@ -68,8 +68,8 @@ function DataVisualization() {
       // Определяем тип устройства по выбранному счетчику
       let deviceType = 'electrical'; // по умолчанию
       
-      if (selectedMeters) {
-        const selectedDevice = filteredMeters.find(d => d.id === selectedMeters);
+      if (selectedMeters && selectedMeters.length > 0) {
+        const selectedDevice = filteredMeters.find(d => d.id === selectedMeters[0]);
         if (selectedDevice && selectedDevice.type) {
           deviceType = selectedDevice.type;
         }
@@ -85,23 +85,37 @@ function DataVisualization() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Определяем тип устройства по выбранному счетчику
+      // Определяем тип устройства по выбранным счетчикам
       let meterType = 'electrical'; // по умолчанию
       
-      if (selectedMeters) {
-        const selectedDevice = filteredMeters.find(d => d.id === selectedMeters);
+      if (selectedMeters && selectedMeters.length > 0) {
+        const selectedDevice = filteredMeters.find(d => d.id === selectedMeters[0]);
         if (selectedDevice && selectedDevice.type) {
           meterType = selectedDevice.type;
         }
       }
       
-      const params = new URLSearchParams({
-        period,
-        dateFrom: period === 'custom' ? dateFrom : '',
-        dateTo: period === 'custom' ? dateTo : '',
-        meterType,
-        meterIds: selectedMeters ? [selectedMeters] : [], // Изменено для работы с единичным выбором
-        parameters: selectedParameters
+      const params = new URLSearchParams();
+      params.append('period', period);
+      if (period === 'custom') {
+        params.append('dateFrom', dateFrom);
+        params.append('dateTo', dateTo);
+      }
+      params.append('meterType', meterType);
+      params.append('aggregation', aggregation);
+      
+      if (selectedObjects && selectedObjects.length > 0) {
+        selectedObjects.forEach(objectId => {
+          params.append('objectIds', objectId);
+        });
+      }
+      
+      selectedMeters.forEach(meterId => {
+        params.append('meterIds', meterId);
+      });
+      
+      selectedParameters.forEach(param => {
+        params.append('parameters', param);
       });
 
       const response = await axios.get(`${API_URL}/api/Visualization/data?${params}`);
@@ -131,7 +145,11 @@ function DataVisualization() {
   };
 
   const handleMeterToggle = (meterId) => {
-    setSelectedMeters(prev => prev === meterId ? null : meterId); // Изменено для единичного выбора
+    setSelectedMeters(prev => 
+      prev.includes(meterId) 
+        ? prev.filter(id => id !== meterId)
+        : [...prev, meterId]
+    );
   };
 
   const handleParameterToggle = (paramId) => {
@@ -151,17 +169,34 @@ function DataVisualization() {
     try {
       const userData = JSON.parse(localStorage.getItem("user"));
       
-      // Подготавливаем данные для отчета
-      const reportData = data.map(item => ({
-        timestamp: new Date(item.timestamp),
-        values: item.values
-      }));
+      // Получаем уникальные ID устройств
+      const deviceIds = [...new Set(data.map(item => item.deviceId))];
+      
+      // Подготавливаем данные для отчета с учетом нескольких счетчиков
+      const reportData = data.map(item => {
+        const reportItem = {
+          timestamp: new Date(item.timestamp),
+          deviceId: item.deviceId,
+          deviceName: item.deviceName,
+          objectName: item.objectName
+        };
+        
+        // Добавляем значения параметров для каждого устройства
+        selectedParameters.forEach(paramKey => {
+          if (item.values[paramKey] !== undefined) {
+            reportItem[paramKey] = item.values[paramKey];
+          }
+        });
+        
+        return reportItem;
+      });
 
       const requestData = {
         type: "data_visualization",
         name: `Отчет по данным ${new Date().toLocaleDateString('ru-RU')}`,
         createdByUserId: userData?.id || null,
         parameters: selectedParameters,
+        deviceIds: deviceIds,
         data: reportData
       };
 
@@ -176,60 +211,152 @@ function DataVisualization() {
     }
   };
 
-  const downsampleData = (rawData, maxPoints) => {
-    if (rawData.length <= maxPoints) {
-      return rawData;
-    }
 
-    // Sort data by timestamp to ensure proper time-based segmentation
-    const sortedData = [...rawData].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    const segmentSize = Math.ceil(sortedData.length / maxPoints);
-    const downsampledData = [];
-
-    for (let i = 0; i < maxPoints; i++) {
-      const startIndex = i * segmentSize;
-      const endIndex = Math.min(startIndex + segmentSize, sortedData.length);
-      const segment = sortedData.slice(startIndex, endIndex);
-
-      if (segment.length > 0) {
-        // Calculate average values for this segment
-        const avgValues = {};
-        const segmentKeys = Object.keys(segment[0].values || {});
-        
-        segmentKeys.forEach(key => {
-          const values = segment.map(item => item.values[key]).filter(val => val !== null && val !== undefined);
-          if (values.length > 0) {
-            avgValues[key] = values.reduce((sum, val) => sum + val, 0) / values.length;
-          }
-        });
-
-        // Use the middle timestamp of the segment
-        const middleIndex = Math.floor((startIndex + endIndex - 1) / 2);
-        const timestamp = sortedData[middleIndex].timestamp;
-
-        downsampledData.push({
-          timestamp,
-          values: avgValues
-        });
-      }
-    }
-
-    return downsampledData;
-  };
 
   const formatChartData = () => {
-    const downsampledData = downsampleData(data, maxPoints);
-    return downsampledData.map(item => ({
-      time: new Date(item.timestamp).toLocaleString('ru-RU', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      }),
-      timestamp: item.timestamp,
-      ...item.values
-    }));
+    if (data.length === 0) return [];
+    
+    // Сортируем данные по времени
+    const sortedData = data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    // Определяем временной диапазон
+    const minTime = new Date(sortedData[0].timestamp);
+    const maxTime = new Date(sortedData[sortedData.length - 1].timestamp);
+    
+    // Создаем временные интервалы в зависимости от выбранной агрегации
+    const intervals = createTimeIntervals(minTime, maxTime, aggregation);
+    
+    // Получаем уникальные ID устройств
+    const deviceIds = [...new Set(sortedData.map(item => item.deviceId))];
+    
+    // Агрегируем данные по интервалам и устройствам
+    const result = intervals.map(interval => {
+      const intervalData = sortedData.filter(item => {
+        const itemTime = new Date(item.timestamp);
+        return itemTime >= interval.start && itemTime < interval.end;
+      });
+      
+      if (intervalData.length === 0) return null;
+      
+      // Создаем объект с данными для каждого устройства в этом интервале
+      const resultItem = {
+        timestamp: interval.start.toISOString(),
+        displayTime: formatTimeForAxis(interval.start),
+        time: interval.start
+      };
+      
+      // Добавляем данные для каждого устройства
+      deviceIds.forEach(deviceId => {
+        const deviceData = intervalData.find(item => item.deviceId === deviceId);
+        if (deviceData) {
+          // Добавляем все значения параметров для этого устройства
+          Object.entries(deviceData.values).forEach(([paramKey, value]) => {
+            resultItem[`${paramKey}_${deviceId}`] = value;
+            resultItem[`${paramKey}_${deviceId}_deviceName`] = deviceData.deviceName;
+            resultItem[`${paramKey}_${deviceId}_objectName`] = deviceData.objectName;
+          });
+        }
+      });
+      
+      return resultItem;
+    }).filter(Boolean); // Убираем null значения
+    
+    return result;
+  };
+
+  // Создаем временные интервалы для агрегации
+  const createTimeIntervals = (minTime, maxTime, aggregationType) => {
+    const intervals = [];
+    let currentTime = new Date(minTime);
+    
+    // Округляем начало до начала интервала
+    switch (aggregationType) {
+      case 'minute':
+        currentTime.setSeconds(0, 0);
+        break;
+      case 'hour':
+        currentTime.setMinutes(0, 0, 0);
+        break;
+      case 'day':
+        currentTime.setHours(0, 0, 0, 0);
+        break;
+    }
+    
+    while (currentTime <= maxTime) {
+      const endTime = new Date(currentTime);
+      
+      // Устанавливаем конец интервала
+      switch (aggregationType) {
+        case 'minute':
+          endTime.setMinutes(endTime.getMinutes() + 1);
+          break;
+        case 'hour':
+          endTime.setHours(endTime.getHours() + 1);
+          break;
+        case 'day':
+          endTime.setDate(endTime.getDate() + 1);
+          break;
+      }
+      
+      intervals.push({
+        start: new Date(currentTime),
+        end: endTime
+      });
+      
+      // Переходим к следующему интервалу
+      switch (aggregationType) {
+        case 'minute':
+          currentTime.setMinutes(currentTime.getMinutes() + 1);
+          break;
+        case 'hour':
+          currentTime.setHours(currentTime.getHours() + 1);
+          break;
+        case 'day':
+          currentTime.setDate(currentTime.getDate() + 1);
+          break;
+      }
+    }
+    
+    return intervals;
+  };
+
+  // Форматируем время для отображения на оси X
+  const formatTimeForAxis = (timestamp) => {
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return 'Н/Д';
+      }
+      
+      switch (aggregation) {
+        case 'minute':
+          return date.toLocaleString('ru-RU', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        case 'hour':
+          return date.toLocaleString('ru-RU', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit'
+          });
+        case 'day':
+          return date.toLocaleString('ru-RU', {
+            month: '2-digit',
+            day: '2-digit'
+          });
+        default:
+          return date.toLocaleString('ru-RU', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit'
+          });
+      }
+    } catch (error) {
+      return 'Ошибка';
+    }
   };
 
   const getParameterDisplayName = (paramKey) => {
@@ -265,6 +392,17 @@ function DataVisualization() {
     return colors[index % colors.length];
   };
 
+  // Функция для получения уникального цвета для каждого устройства
+  const getColorForDevice = (deviceId) => {
+    const colors = [
+      '#ff6b35', '#4ecdc4', '#45b7d1', '#96ceb4', 
+      '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd',
+      '#ff4757', '#2ed573', '#1e90ff', '#ffa502',
+      '#ff6348', '#32cd32', '#4169e1', '#daa520'
+    ];
+    return colors[deviceId % colors.length];
+  };
+
   const renderGraphs = () => {
     const chartData = formatChartData();
     
@@ -277,19 +415,23 @@ function DataVisualization() {
       return <div>Нет параметров для отображения</div>;
     }
     
+    // Получаем уникальные ID устройств для создания линий
+    const deviceIds = [...new Set(data.map(item => item.deviceId))];
+    
     return (
       <div className="mb-6">
         <div className="flex items-center gap-4 mb-4">
           <label className="flex items-center gap-2">
-            <span>Максимум точек на графике:</span>
-            <input
-              type="number"
-              min="10"
-              max="1000"
-              value={maxPoints}
-              onChange={(e) => setMaxPoints(parseInt(e.target.value) || 100)}
-              className="border rounded px-2 py-1 w-20"
-            />
+            <span>Агрегация данных:</span>
+            <select
+              value={aggregation}
+              onChange={(e) => setAggregation(e.target.value)}
+              className="border rounded px-2 py-1"
+            >
+              <option value="minute">По минутам</option>
+              <option value="hour">По часам</option>
+              <option value="day">По дням</option>
+            </select>
           </label>
         </div>
         
@@ -300,30 +442,52 @@ function DataVisualization() {
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
-                  dataKey="time" 
+                  dataKey="displayTime" 
                   angle={-45}
                   textAnchor="end"
                   height={80}
-                  interval={Math.ceil(chartData.length / 20)}
                 />
                 <YAxis />
                 <Tooltip 
                   labelFormatter={(value) => {
-                    const item = chartData.find(item => item.time === value);
+                    const item = chartData.find(item => item.displayTime === value);
                     return item ? new Date(item.timestamp).toLocaleString('ru-RU') : value;
                   }}
+                  formatter={(value, name) => {
+                    // Извлекаем имя устройства из названия линии
+                    const deviceId = name.split('_').pop();
+                    const deviceName = chartData[0]?.[`${name.split('_')[0]}_${deviceId}_deviceName`] || `Device ${deviceId}`;
+                    return [value, deviceName];
+                  }}
                 />
-                <Legend />
-                {params.map((param, index) => (
-                  <Line
-                    key={`${type}-${param.key}`}
-                    type="monotone"
-                    dataKey={param.key}
-                    stroke={getColorForType(type, index)}
-                    name={param.key}
-                    connectNulls={false}
-                  />
-                ))}
+                <Legend 
+                  formatter={(value, entry) => {
+                    // Упрощаем название в легенде, убирая дублирование
+                    const parts = value.split(' - ');
+                    if (parts.length > 1) {
+                      return `${parts[0]} (${parts[1]})`;
+                    }
+                    return value;
+                  }}
+                />
+                {params.map((param) => 
+                  deviceIds.map((deviceId, deviceIndex) => {
+                    const dataKey = `${param.key}_${deviceId}`;
+                    const deviceName = chartData[0]?.[`${param.key}_${deviceId}_deviceName`] || `Device ${deviceId}`;
+                    
+                    return (
+                      <Line
+                        key={`${type}-${param.key}-${deviceId}`}
+                        type="monotone"
+                        dataKey={dataKey}
+                        stroke={getColorForDevice(deviceId)}
+                        name={`${param.displayName} - ${deviceName}`}
+                        connectNulls={false}
+                        strokeWidth={2}
+                      />
+                    );
+                  })
+                ).flat()}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -335,13 +499,23 @@ function DataVisualization() {
   const renderTable = () => {
     if (!data.length) return <div className="text-gray-500 text-center py-4">Нет данных</div>;
 
-    // Создаем колонки только для выбранных параметров
+    // Получаем уникальные ID устройств
+    const deviceIds = [...new Set(data.map(item => item.deviceId))];
+    
+    // Создаем колонки для выбранных параметров и устройств
     const columns = [
       { key: 'timestamp', name: 'Дата и время' },
-      ...selectedParameters.map(paramKey => ({
-        key: paramKey,
-        name: paramKey // Изменено с getParameterDisplayName(paramKey) на paramKey для отображения конкретных параметров
-      }))
+      ...selectedParameters.flatMap(paramKey => 
+        deviceIds.map(deviceId => {
+          const deviceName = data.find(item => item.deviceId === deviceId)?.deviceName || `Device ${deviceId}`;
+          return {
+            key: `${paramKey}_${deviceId}`,
+            name: `${paramKey} - ${deviceName}`,
+            paramKey,
+            deviceId
+          };
+        })
+      )
     ];
 
     return (
@@ -360,8 +534,8 @@ function DataVisualization() {
                 {columns.map((col, colIdx) => (
                   <td key={colIdx} className="border p-2">
                     {col.key === 'timestamp' 
-                      ? new Date(row.timestamp).toLocaleString()
-                      : row.values[col.key]?.toFixed(3) || '0.000'
+                      ? new Date(row.timestamp).toLocaleString('ru-RU')
+                      : row.values[col.paramKey]?.toFixed(3) || '0.000'
                     }
                   </td>
                 ))}
@@ -377,23 +551,12 @@ function DataVisualization() {
     <div className="w-[1515px] h-[865px] mt-[30px]">
       <div className="flex gap-6 h-full">
         {/* Left Control Panel */}
-        <div className="w-72 bg-white/70 rounded-[10px] border border-neutral-400/20 p-4 flex flex-col gap-4">
-          {/* Period Section */}
+        <div className="w-72 bg-white/70 rounded-[10px] border border-neutral-400/20 p-4 flex flex-col gap-4 overflow-y-auto max-h-full">
+          {/* Period Selection Section */}
           <div>
             <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Период</h3>
             <div className="space-y-2">
-              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
-                <input 
-                  type="radio" 
-                  name="period" 
-                  value="today" 
-                  checked={period === 'today'}
-                  onChange={(e) => setPeriod(e.target.value)}
-                  className="mr-2 w-4 h-4 text-red-700 border-gray-300 focus:ring-red-500"
-                />
-                <span className="text-sm font-open-sans text-gray-700">Сегодня</span>
-              </label>
-              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
+              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
                 <input 
                   type="radio" 
                   name="period" 
@@ -402,9 +565,20 @@ function DataVisualization() {
                   onChange={(e) => setPeriod(e.target.value)}
                   className="mr-2 w-4 h-4 text-red-700 border-gray-300 focus:ring-red-500"
                 />
-                <span className="text-sm font-open-sans text-gray-700">Последние 2 дня</span>
+                <span className="text-sm font-open-sans text-gray-700">За два дня</span>
               </label>
-              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
+              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
+                <input 
+                  type="radio" 
+                  name="period" 
+                  value="lastWeek" 
+                  checked={period === 'lastWeek'}
+                  onChange={(e) => setPeriod(e.target.value)}
+                  className="mr-2 w-4 h-4 text-red-700 border-gray-300 focus:ring-red-500"
+                />
+                <span className="text-sm font-open-sans text-gray-700">За неделю</span>
+              </label>
+              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
                 <input 
                   type="radio" 
                   name="period" 
@@ -415,7 +589,7 @@ function DataVisualization() {
                 />
                 <span className="text-sm font-open-sans text-gray-700">За две недели</span>
               </label>
-              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
+              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
                 <input 
                   type="radio" 
                   name="period" 
@@ -426,7 +600,7 @@ function DataVisualization() {
                 />
                 <span className="text-sm font-open-sans text-gray-700">За прошлый месяц</span>
               </label>
-              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
+              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
                 <input 
                   type="radio" 
                   name="period" 
@@ -437,7 +611,7 @@ function DataVisualization() {
                 />
                 <span className="text-sm font-open-sans text-gray-700">С начала месяца</span>
               </label>
-              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
+              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
                 <input 
                   type="radio" 
                   name="period" 
@@ -451,29 +625,55 @@ function DataVisualization() {
             </div>
             
             {period === 'custom' && (
-              <div className="mt-3 space-y-2">
-                <input
-                  type="text"
-                  placeholder="От"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-sm"
-                />
-                <input
-                  type="text"
-                  placeholder="До"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-sm"
-                />
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    От:
+                  </label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    max={dateTo}
+                    className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    До:
+                  </label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    min={dateFrom}
+                    className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  />
+                </div>
+                {dateFrom && dateTo && dateFrom > dateTo && (
+                  <div className="text-red-500 text-xs">
+                    Дата "До" не может быть раньше даты "От"
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    const twoDaysAgo = new Date();
+                    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+                    setDateFrom(twoDaysAgo.toISOString().split('T')[0]);
+                    setDateTo(new Date().toISOString().split('T')[0]);
+                  }}
+                  className="w-full px-3 py-2 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+                >
+                  Последние 2 дня
+                </button>
               </div>
             )}
           </div>
 
           {/* Objects Section */}
-          <div>
+          <div className="mt-4">
             <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Список объектов</h3>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
+            <div className="space-y-2">
               {objects.map((obj) => (
                 <label key={obj.id} className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
                   <input
@@ -489,7 +689,7 @@ function DataVisualization() {
           </div>
 
           {/* Device Types Section */}
-          <div>
+          <div className="mt-4">
             <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Тип устройства</h3>
             <div className="space-y-2">
               {deviceTypes.map((deviceType) => (
@@ -511,14 +711,14 @@ function DataVisualization() {
           </div>
 
           {/* Meters Section */}
-          <div>
+          <div className="mt-4">
             <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Счетчики</h3>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
+            <div className="space-y-2">
               {filteredMeters.map((meter) => (
                 <div 
                   key={meter.id} 
                   className={`p-2 rounded cursor-pointer transition-colors ${
-                    selectedMeters === meter.id 
+                    selectedMeters.includes(meter.id)
                       ? 'bg-red-100 border border-red-300' 
                       : 'hover:bg-gray-50'
                   }`}

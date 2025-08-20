@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 
@@ -118,6 +118,59 @@ const getParameterUnit = (paramName) => {
   return units[paramName] || '';
 };
 
+// Функция для фильтрации параметров для отображения на карточках счетчиков
+const filterParametersForCards = (parameters) => {
+  if (!parameters || parameters.length === 0) return [];
+  
+  console.log('🔍 Filtering parameters for cards:', parameters);
+  
+  // Определяем приоритетные параметры для карточек
+  const priorityParams = [
+    'IL1', 'IL2', 'IL3',        // Токи по трем фазам
+    'PSum',                     // Суммарная активная мощность
+    'QSum',                     // Суммарная реактивная мощность
+    'AllEnergy'                 // Накопленная энергия
+  ];
+  
+  // Сначала ищем приоритетные параметры
+  const filteredParams = [];
+  
+  for (const priorityParam of priorityParams) {
+    const foundParam = parameters.find(param => 
+      param.parameterCode === priorityParam || 
+      param.shortName === priorityParam || 
+      param.name === priorityParam
+    );
+    if (foundParam) {
+      filteredParams.push(foundParam);
+      console.log(`✅ Found priority parameter: ${priorityParam}`);
+    } else {
+      console.log(`❌ Priority parameter not found: ${priorityParam}`);
+    }
+  }
+  
+  // Если приоритетных параметров меньше 6, добавляем остальные до 6 штук
+  if (filteredParams.length < 6) {
+    const remainingParams = parameters.filter(param => 
+      !filteredParams.some(fp => 
+        fp.parameterCode === param.parameterCode || 
+        fp.shortName === param.shortName || 
+        fp.name === param.name
+      )
+    );
+    
+    const additionalCount = Math.min(6 - filteredParams.length, remainingParams.length);
+    filteredParams.push(...remainingParams.slice(0, additionalCount));
+    
+    console.log(`➕ Added ${additionalCount} additional parameters`);
+  }
+  
+  const result = filteredParams.slice(0, 6); // Максимум 6 параметров на карточке
+  console.log('🎯 Final filtered parameters for cards:', result);
+  
+  return result;
+};
+
 function DeviceAccounting() {
   const [devices, setDevices] = useState([]);
   const [objects, setObjects] = useState([]);
@@ -126,10 +179,23 @@ function DeviceAccounting() {
   const [showModal, setShowModal] = useState(false);
   const [loadingDevice, setLoadingDevice] = useState(false);
   const [connection, setConnection] = useState(null);
+  
+  // Используем useRef для хранения актуального состояния
+  const selectedDeviceRef = useRef(null);
+  const showModalRef = useRef(false);
 
   useEffect(() => {
     fetchDevices();
   }, []);
+
+  // Синхронизируем useRef с состоянием
+  useEffect(() => {
+    selectedDeviceRef.current = selectedDevice;
+  }, [selectedDevice]);
+
+  useEffect(() => {
+    showModalRef.current = showModal;
+  }, [showModal]);
 
   // SignalR подключение
   useEffect(() => {
@@ -145,14 +211,12 @@ function DeviceAccounting() {
     if (connection) {
       connection.start()
         .then(() => {
-          console.log('SignalR Connected');
           connection.invoke('JoinNotificationGroup');
         })
-        .catch(err => console.error('SignalR Connection Error: ', err));
+        .catch(err => console.error('❌ SignalR Connection Error: ', err));
 
       // Обработчик обновлений данных устройств
       connection.on('DeviceDataUpdate', (deviceData) => {
-        console.log(`Received device data update at ${new Date().toLocaleTimeString()}:`, deviceData);
         updateDeviceData(deviceData);
       });
 
@@ -162,41 +226,87 @@ function DeviceAccounting() {
     }
   }, [connection]);
 
-  const updateDeviceData = (deviceData) => {
+  const updateDeviceData = useCallback((deviceData) => {
+    console.log('🔄 SignalR update received:', deviceData);
+    
     setDevices(prevDevices => {
       return prevDevices.map(device => {
         const updatedDevice = deviceData.find(d => d.deviceId === device.id);
         if (updatedDevice) {
-          // Преобразуем все параметры в правильный формат
-          const formattedParams = Object.entries(updatedDevice.averageValues).map(([key, value]) => ({
-            name: getParameterDisplayName(key),
-            shortName: key,
-            fullName: getParameterDisplayName(key),
-            value: value.toString(),
-            unit: getParameterUnit(key)
-          }));
+          console.log(`📱 Updating device ${device.id}:`, updatedDevice);
+          
+          // Если у нас есть новая структура с parameters, используем её
+          if (updatedDevice.parameters && updatedDevice.parameters.length > 0) {
+            const allParams = updatedDevice.parameters.map(param => ({
+              name: param.parameterName || param.name,
+              shortName: param.parameterShortName || param.parameterCode || param.shortName,
+              fullName: param.parameterName || param.name,
+              value: param.value?.toString() || '0',
+              unit: param.unit || '',
+              hasValue: param.hasValue !== false, // По умолчанию считаем, что значение есть
+              parameterCode: param.parameterCode || param.shortName || param.name
+            }));
+            
+            console.log(`🔧 Device ${device.id} parameters after update:`, allParams);
+            
+            return {
+              ...device,
+              statusColor: updatedDevice.statusColor,
+              params: allParams // Сохраняем все параметры для модального окна
+            };
+          }
+          // Fallback на старую логику для совместимости
+          else if (updatedDevice.averageValues) {
+            const formattedParams = Object.entries(updatedDevice.averageValues).map(([key, value]) => ({
+              name: getParameterDisplayName(key),
+              shortName: key,
+              fullName: getParameterDisplayName(key),
+              value: value.toString(),
+              unit: getParameterUnit(key),
+              parameterCode: key
+            }));
 
-          return {
-            ...device,
-            statusColor: updatedDevice.statusColor,
-            params: formattedParams
-          };
+            console.log(`🔧 Device ${device.id} parameters from averageValues:`, formattedParams);
+
+            return {
+              ...device,
+              statusColor: updatedDevice.statusColor,
+              params: formattedParams
+            };
+          }
         }
         return device;
       });
     });
 
     // Также обновляем данные в модальном окне, если оно открыто
-    if (selectedDevice && showModal) {
-      const updatedDevice = deviceData.find(d => d.deviceId === selectedDevice.deviceId);
+    if (selectedDeviceRef.current && showModalRef.current) {
+      const updatedDevice = deviceData.find(d => d.deviceId === selectedDeviceRef.current.deviceId);
+      
       if (updatedDevice) {
-        const formattedParameters = Object.entries(updatedDevice.averageValues).map(([key, value]) => ({
-          name: getParameterDisplayName(key),
-          shortName: key,
-          fullName: getParameterDisplayName(key),
-          value: value.toString(),
-          unit: getParameterUnit(key)
-        }));
+        let formattedParameters = [];
+        
+        // Если у нас есть новая структура с parameters, используем её
+        if (updatedDevice.parameters && updatedDevice.parameters.length > 0) {
+          formattedParameters = updatedDevice.parameters.map(param => ({
+            name: param.parameterName || param.name,
+            shortName: param.parameterShortName || param.parameterCode || param.shortName,
+            fullName: param.parameterName || param.name,
+            value: param.value?.toString() || '0',
+            unit: param.unit || '',
+            hasValue: param.hasValue !== false // По умолчанию считаем, что значение есть
+          }));
+        }
+        // Fallback на старую логику для совместимости
+        else if (updatedDevice.averageValues) {
+          formattedParameters = Object.entries(updatedDevice.averageValues).map(([key, value]) => ({
+            name: getParameterDisplayName(key),
+            shortName: key,
+            fullName: getParameterDisplayName(key),
+            value: value.toString(),
+            unit: getParameterUnit(key)
+          }));
+        }
 
         setSelectedDevice(prev => ({
           ...prev,
@@ -206,17 +316,22 @@ function DeviceAccounting() {
         }));
       }
     }
-  };
+  }, []);
 
   const fetchDevices = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/Device/dashboard`);
-      // Сохраняем объекты
-      setObjects(response.data.objects || []);
-      // Извлекаем устройства из структуры ответа
+      // Сохраняем объекты и сортируем по ID для стабильности
+      const sortedObjects = (response.data.objects || []).sort((a, b) => a.id - b.id);
+      setObjects(sortedObjects);
+      // Извлекаем устройства из структуры ответа и сортируем по ID для стабильности
       const allDevices = response.data.objects?.flatMap(obj => 
         obj.devices?.map(dev => ({ ...dev, object: obj.name })) || []
-      ) || [];
+      ).sort((a, b) => a.id - b.id) || []; // Сортируем по ID для стабильного порядка
+      
+      // Добавляем логирование для отладки
+      console.log('📊 Devices loaded from API:', allDevices);
+      
       setDevices(allDevices);
     } catch (error) {
       console.error('Error fetching devices:', error);
@@ -233,13 +348,12 @@ function DeviceAccounting() {
           name: 'Прибор 1',
           object: 'Объект 1',
           params: [
-            { name: 'Ур. воды', value: '2' },
-            { name: 'T° улицы', value: '-5.232' },
-            { name: 'T° под. сети', value: '23.222' },
-            { name: 'T° под. конт.', value: '33.545' },
-            { name: 'T° котла №1', value: '45.656' },
-            { name: 'T° котла №2', value: '54.655' },
-            { name: 'Насос котлов', value: '3' }
+            { name: 'I L1', shortName: 'IL1', fullName: 'Ток фазы L1', value: '2.5', unit: 'A', parameterCode: 'IL1' },
+            { name: 'I L2', shortName: 'IL2', fullName: 'Ток фазы L2', value: '2.3', unit: 'A', parameterCode: 'IL2' },
+            { name: 'I L3', shortName: 'IL3', fullName: 'Ток фазы L3', value: '2.7', unit: 'A', parameterCode: 'IL3' },
+            { name: 'P Sum', shortName: 'PSum', fullName: 'Суммарная активная мощность', value: '1500', unit: 'W', parameterCode: 'PSum' },
+            { name: 'Q Sum', shortName: 'QSum', fullName: 'Суммарная реактивная мощность', value: '300', unit: 'var', parameterCode: 'QSum' },
+            { name: 'All Energy', shortName: 'AllEnergy', fullName: 'Накопленная энергия', value: '1250.5', unit: 'kWh', parameterCode: 'AllEnergy' }
           ]
         },
         {
@@ -258,25 +372,35 @@ function DeviceAccounting() {
     }
   };
 
+  // Мемоизируем отфильтрованные устройства для стабильности
+  const filteredDevices = useMemo(() => {
+    if (tab === 0) return devices;
+    return devices.filter(dev => dev.object === objects[tab - 1]?.name);
+  }, [devices, objects, tab]);
+
   const handleDeviceClick = async (deviceId) => {
     setLoadingDevice(true);
     try {
       const response = await axios.get(`${API_URL}/api/Device/device/${deviceId}/details`);
+      
+      // Устанавливаем состояние
       setSelectedDevice(response.data);
       setShowModal(true);
+      
     } catch (error) {
-      console.error('Error fetching device details:', error);
+      console.error('❌ Error fetching device details:', error);
       // Показываем базовую информацию об устройстве, если детали не загрузились
       const device = devices.find(d => d.id === deviceId);
       if (device) {
-        setSelectedDevice({
+        const fallbackDevice = {
           deviceId: device.id,
           deviceName: device.deviceName || device.name,
           objectName: device.object,
           isActive: device.statusColor === 'green',
           lastReading: null,
           parameters: device.params || []
-        });
+        };
+        setSelectedDevice(fallbackDevice);
         setShowModal(true);
       }
     } finally {
@@ -314,53 +438,55 @@ function DeviceAccounting() {
 
       {/* Device Cards Grid */}
       <div className="grid grid-cols-5 gap-4 overflow-y-auto max-h-[700px]">
-        {devices && devices.length > 0 ? (tab === 0 ? devices : devices.filter(dev => dev.object === objects[tab - 1]?.name)).map((dev, idx) => (
-          <div 
-            key={dev.id} 
-            className="w-64 h-80 bg-white rounded-[10px] border border-neutral-400/50 cursor-pointer hover:shadow-md p-4 flex flex-col"
-            onClick={() => handleDeviceClick(dev.id)}
-          >
-            {/* Card Header with adaptive white pill */}
-            <div className={`w-full h-8 ${dev.statusColor === 'green' ? 'bg-green-700' : 'bg-red-700'} rounded-[10px] flex items-center px-2 mb-3`}>
-              <div className="h-6 bg-white rounded-lg flex items-center justify-center px-2 min-w-fit">
-                <div className="opacity-70 justify-start text-black text-sm font-semibold font-open-sans whitespace-nowrap">
-                  {dev.object || `Объект ${Math.floor(idx / 3) + 1}`}
+        {filteredDevices && filteredDevices.length > 0 ? (
+          filteredDevices.map((dev) => (
+            <div 
+              key={`device-${dev.id}`} 
+              className="w-64 h-80 bg-white rounded-[10px] border border-neutral-400/50 cursor-pointer hover:shadow-md p-4 flex flex-col"
+              onClick={() => handleDeviceClick(dev.id)}
+            >
+              {/* Card Header with adaptive white pill */}
+              <div className={`w-full h-8 ${dev.statusColor === 'green' ? 'bg-green-700' : 'bg-red-700'} rounded-[10px] flex items-center px-2 mb-3`}>
+                <div className="h-6 bg-white rounded-lg flex items-center justify-center px-2 min-w-fit">
+                  <div className="opacity-70 justify-start text-black text-sm font-semibold font-open-sans whitespace-nowrap">
+                    {dev.object || `Объект ${Math.floor(dev.id / 3) + 1}`}
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            {/* Device Title */}
-            <h3 className="font-bold mb-3 text-sm text-black font-open-sans truncate">{dev.deviceName || dev.name || `Прибор ${idx + 1}`}</h3>
-            
-            {/* Divider Line */}
-            <div className="w-full h-0 outline outline-1 outline-offset-[-0.50px] outline-black/10 mb-3"></div>
-            
-            {/* Parameters */}
-            <div className="space-y-1 flex-1">
-              {dev.params && dev.params.length > 0 ? (
-                dev.params.slice(0, 6).map((param, paramIdx) => (
-                  <div key={paramIdx} className="flex justify-between items-center">
-                    <div className="opacity-50 justify-start text-black text-xs font-normal font-open-sans">
-                      {param.name}:
+              
+              {/* Device Title */}
+              <h3 className="font-bold mb-3 text-sm text-black font-open-sans truncate">{dev.deviceName || dev.name || `Прибор ${dev.id}`}</h3>
+              
+              {/* Divider Line */}
+              <div className="w-full h-0 outline outline-1 outline-offset-[-0.50px] outline-black/10 mb-3"></div>
+              
+              {/* Parameters */}
+              <div className="space-y-1 flex-1">
+                {dev.params && dev.params.length > 0 ? (
+                  filterParametersForCards(dev.params).map((param, paramIdx) => (
+                    <div key={`param-${dev.id}-${paramIdx}`} className="flex justify-between items-center">
+                      <div className="opacity-50 justify-start text-black text-xs font-normal font-open-sans">
+                        {param.shortName || param.name}:
+                      </div>
+                      <span className={`text-black font-medium text-xs font-open-sans ${param.hasValue === false ? 'text-gray-400' : ''}`}>
+                        {param.hasValue === false ? 'Н/Д' : param.value}
+                      </span>
                     </div>
-                    <span className="text-black font-medium text-xs font-open-sans">
-                      {param.value}{param.unit && ` ${param.unit}`}
-                    </span>
+                  ))
+                ) : (
+                  <div className="text-gray-500 text-center py-4 font-open-sans text-sm">
+                    Данных нет
                   </div>
-                ))
-              ) : (
-                <div className="text-gray-500 text-center py-4 font-open-sans text-sm">
-                  Данных нет
-                </div>
-              )}
-              {dev.params && dev.params.length > 6 && (
-                <div className="text-gray-400 text-center text-xs font-open-sans">
-                  +{dev.params.length - 6} параметров
-                </div>
-              )}
+                )}
+                {dev.params && dev.params.length > 6 && (
+                  <div className="text-gray-400 text-center text-xs font-open-sans">
+                    +{dev.params.length - 6} параметров
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )) : (
+          ))
+        ) : (
           <div className="col-span-5 flex items-center justify-center text-gray-500 font-open-sans">
             Загрузка устройств...
           </div>
@@ -440,14 +566,18 @@ function DeviceAccounting() {
                   {selectedDevice.parameters && selectedDevice.parameters.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {selectedDevice.parameters.map((param, idx) => (
-                        <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border">
+                        <div key={`modal-param-${param.shortName || idx}`} className={`flex justify-between items-center p-3 rounded-lg border ${
+                          param.hasValue === false ? 'bg-gray-100 opacity-60' : 'bg-gray-50'
+                        }`}>
                           <div className="flex flex-col">
-                            <span className="font-medium text-sm">{param.fullName || param.shortName}</span>
-                            <span className="text-xs text-gray-500">{param.shortName}</span>
+                            <span className="font-medium text-sm">{param.fullName || param.name || param.shortName}</span>
+                            <span className="text-xs text-gray-500">{param.shortName || param.name}</span>
                           </div>
                           <div className="text-right">
-                            <span className="font-semibold text-lg">{param.value}</span>
-                            {param.unit && <span className="text-xs text-gray-500 ml-1">{param.unit}</span>}
+                            <span className={`font-semibold text-lg ${param.hasValue === false ? 'text-gray-400' : 'text-black'}`}>
+                              {param.hasValue === false ? 'Н/Д' : param.value}
+                            </span>
+                            {param.unit && param.hasValue !== false && <span className="text-xs text-gray-500 ml-1">{param.unit}</span>}
                           </div>
                         </div>
                       ))}
@@ -471,4 +601,4 @@ function DeviceAccounting() {
   );
 }
 
-export default DeviceAccounting; 
+export default DeviceAccounting;
