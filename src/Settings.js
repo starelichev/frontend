@@ -2,13 +2,12 @@ import React, { useState, useEffect } from "react";
 import logo from "./icons/logo.svg";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { X, User, Key, Link, Clock, Settings as SettingsIcon, Edit } from "lucide-react";
+import { X, User, Key, Link, Settings as SettingsIcon, Edit } from "lucide-react";
 
 const menu = [
   { label: "Профиль", icon: <User className="w-4 h-4" /> },
   { label: "Изменение пароля", icon: <Key className="w-4 h-4" /> },
   { label: "Объекты и счетчики", icon: <Link className="w-4 h-4" /> },
-  { label: "Время опроса", icon: <Clock className="w-4 h-4" /> },
   { label: "Подключение к серверу", icon: <SettingsIcon className="w-4 h-4" /> },
 ];
 
@@ -41,8 +40,19 @@ function Settings() {
   const [editingTrustedBefore, setEditingTrustedBefore] = useState(false);
   const [comment, setComment] = useState("");
   const [trustedBefore, setTrustedBefore] = useState("");
-  const [scanInterval, setScanInterval] = useState(5000); // По умолчанию 5 секунд
-  const [scanIntervalLoading, setScanIntervalLoading] = useState(false);
+  
+  // Новые состояния для редактирования устройств
+  const [editingDeviceName, setEditingDeviceName] = useState(false);
+  const [editingIpAddress, setEditingIpAddress] = useState(false);
+  const [editingNetworkPort, setEditingNetworkPort] = useState(false);
+  const [editingKoeffTrans, setEditingKoeffTrans] = useState(false);
+  const [editingScanInterval, setEditingScanInterval] = useState(false);
+  const [deviceName, setDeviceName] = useState("");
+  const [ipAddress, setIpAddress] = useState("");
+  const [networkPort, setNetworkPort] = useState("");
+  const [koeffTrans, setKoeffTrans] = useState(1.0);
+  const [deviceScanInterval, setDeviceScanInterval] = useState(10000);
+  const [deviceDetails, setDeviceDetails] = useState(null);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user"));
@@ -58,22 +68,7 @@ function Settings() {
     }
   }, []);
 
-  // Загружаем текущее время опроса из базы данных
-  useEffect(() => {
-    const fetchCurrentScanInterval = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/api/Device/scan-interval`);
-        if (response.data && response.data.averageScanInterval) {
-          setScanInterval(response.data.averageScanInterval);
-        }
-      } catch (err) {
-        console.error('Ошибка при загрузке времени опроса:', err);
-        // Оставляем значение по умолчанию 5000
-      }
-    };
 
-    fetchCurrentScanInterval();
-  }, []);
 
   useEffect(() => {
     if (active === 2) {
@@ -91,8 +86,34 @@ function Settings() {
       const device = objects[selectedObject].devices[selectedDevice];
       setComment(device.comment || "");
               setTrustedBefore(device.trustedBefore ? new Date(device.trustedBefore).toISOString().slice(0, 16) : "");
+      
+      // Сбрасываем состояния редактирования
+      setEditingDeviceName(false);
+      setEditingIpAddress(false);
+      setEditingNetworkPort(false);
+      setEditingKoeffTrans(false);
+      setEditingScanInterval(false);
+      
+      // Загружаем детальную информацию об устройстве
+      loadDeviceDetails(device.id);
     }
   }, [selectedObject, selectedDevice, objects]);
+
+  // Функция для загрузки детальной информации об устройстве
+  const loadDeviceDetails = async (deviceId) => {
+    try {
+      const response = await axios.get(`${API_URL}/api/Device/details/${deviceId}`);
+      const details = response.data;
+      setDeviceDetails(details);
+      setDeviceName(details.name || "");
+      setIpAddress(details.ipAddress || "");
+      setNetworkPort(details.networkPort || "");
+      setKoeffTrans(details.koeffTrans || 1.0);
+      setDeviceScanInterval(details.scanInterval || 10000);
+    } catch (error) {
+      console.error('Ошибка при загрузке деталей устройства:', error);
+    }
+  };
 
   const handleChange = e => {
     setProfile({ ...profile, [e.target.name]: e.target.value });
@@ -175,6 +196,14 @@ function Settings() {
       updatedObjects[selectedObject].devices[selectedDevice].comment = comment;
       setObjects(updatedObjects);
 
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          comment: comment
+        });
+      }
+
       setEditingComment(false);
       alert("Комментарий успешно сохранен");
     } catch (err) {
@@ -218,6 +247,14 @@ function Settings() {
       updatedObjects[selectedObject].devices[selectedDevice].trustedBefore = trustedBeforeDate;
       setObjects(updatedObjects);
 
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          trustedBefore: trustedBeforeDate
+        });
+      }
+
       setEditingTrustedBefore(false);
       alert("Дата последней поверки успешно сохранена");
     } catch (err) {
@@ -229,19 +266,130 @@ function Settings() {
     }
   };
 
-  const handleScanIntervalSave = async () => {
-    setScanIntervalLoading(true);
+
+
+  // Функции для сохранения изменений устройства
+  const handleDeviceNameSave = async () => {
     try {
+      const deviceId = objects[selectedObject].devices[selectedDevice].id;
+      await axios.put(`${API_URL}/api/Device/edit`, {
+        id: deviceId,
+        name: deviceName
+      });
+      
+      // Обновляем данные в локальном состоянии
+      const updatedObjects = [...objects];
+      updatedObjects[selectedObject].devices[selectedDevice].name = deviceName;
+      setObjects(updatedObjects);
+      
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          name: deviceName
+        });
+      }
+      
+      setEditingDeviceName(false);
+      alert("Название устройства успешно обновлено");
+    } catch (error) {
+      alert("Ошибка при обновлении названия устройства");
+    }
+  };
+
+  const handleIpAddressSave = async () => {
+    try {
+      const deviceId = objects[selectedObject].devices[selectedDevice].id;
+      await axios.put(`${API_URL}/api/Device/edit`, {
+        id: deviceId,
+        ipAddress: ipAddress
+      });
+      
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          ipAddress: ipAddress
+        });
+      }
+      
+      setEditingIpAddress(false);
+      alert("IP-адрес устройства успешно обновлен");
+    } catch (error) {
+      alert("Ошибка при обновлении IP-адреса устройства");
+    }
+  };
+
+  const handleNetworkPortSave = async () => {
+    try {
+      const deviceId = objects[selectedObject].devices[selectedDevice].id;
+      await axios.put(`${API_URL}/api/Device/edit`, {
+        id: deviceId,
+        networkPort: parseInt(networkPort)
+      });
+      
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          networkPort: parseInt(networkPort)
+        });
+      }
+      
+      setEditingNetworkPort(false);
+      alert("Сетевой порт устройства успешно обновлен");
+    } catch (error) {
+      alert("Ошибка при обновлении сетевого порта устройства");
+    }
+  };
+
+  const handleKoeffTransSave = async () => {
+    try {
+      const deviceId = objects[selectedObject].devices[selectedDevice].id;
+      await axios.put(`${API_URL}/api/Device/edit`, {
+        id: deviceId,
+        koeffTrans: parseFloat(koeffTrans)
+      });
+      
+      // Обновляем локальное состояние
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          koeffTrans: parseFloat(koeffTrans)
+        });
+      }
+      
+      setEditingKoeffTrans(false);
+      alert("Коэффициент трансформации устройства успешно обновлен");
+    } catch (error) {
+      alert("Ошибка при обновлении коэффициента трансформации устройства");
+    }
+  };
+
+  const handleDeviceScanIntervalSave = async () => {
+    try {
+      const deviceId = objects[selectedObject].devices[selectedDevice].id;
       const user = JSON.parse(localStorage.getItem("user"));
-      await axios.post(`${API_URL}/api/User/update-scan-interval`, {
-        scanIntervalMs: scanInterval,
+      
+      await axios.put(`${API_URL}/api/Device/edit`, {
+        id: deviceId,
+        scanInterval: parseInt(deviceScanInterval),
         userId: user?.id
       });
-      alert("Время опроса успешно обновлено");
-    } catch (err) {
-      alert("Ошибка при обновлении времени опроса");
+      
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          scanInterval: parseInt(deviceScanInterval)
+        });
+      }
+      
+      setEditingScanInterval(false);
+      alert("Время опроса устройства успешно обновлено");
+    } catch (error) {
+      alert("Ошибка при обновлении времени опроса устройства");
     }
-    setScanIntervalLoading(false);
   };
 
   return (
@@ -486,7 +634,209 @@ function Settings() {
                             <div className="text-base text-black/50">Адрес: <span className="text-black">{objects[selectedObject].place}</span></div>
                   {objects[selectedObject].devices && objects[selectedObject].devices[selectedDevice] && (
                     <>
-                                <div className="font-semibold text-black">{objects[selectedObject].devices[selectedDevice].name}</div>
+                      {/* Название устройства */}
+                      <div className="text-base text-black/50 flex items-center justify-between">
+                        Название устройства: 
+                        <div className="flex items-center gap-2">
+                          {editingDeviceName ? (
+                            <>
+                              <input
+                                type="text"
+                                value={deviceName}
+                                onChange={(e) => setDeviceName(e.target.value)}
+                                className="border border-gray-200 rounded px-2 py-1 text-black"
+                                placeholder="Введите название"
+                              />
+                              <button
+                                onClick={handleDeviceNameSave}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingDeviceName(false)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                ✗
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-black">{deviceDetails?.name || objects[selectedObject].devices[selectedDevice].name}</span>
+                              <button
+                                onClick={() => setEditingDeviceName(true)}
+                                className="text-blue-600 hover:text-blue-800 ml-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* IP-адрес */}
+                      <div className="text-base text-black/50 flex items-center justify-between">
+                        IP-адрес: 
+                        <div className="flex items-center gap-2">
+                          {editingIpAddress ? (
+                            <>
+                              <input
+                                type="text"
+                                value={ipAddress}
+                                onChange={(e) => setIpAddress(e.target.value)}
+                                className="border border-gray-200 rounded px-2 py-1 text-black"
+                                placeholder="192.168.1.100"
+                              />
+                              <button
+                                onClick={handleIpAddressSave}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingIpAddress(false)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                ✗
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-black">{deviceDetails?.ipAddress || 'Не указан'}</span>
+                              <button
+                                onClick={() => setEditingIpAddress(true)}
+                                className="text-blue-600 hover:text-blue-800 ml-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Сетевой порт */}
+                      <div className="text-base text-black/50 flex items-center justify-between">
+                        Сетевой порт: 
+                        <div className="flex items-center gap-2">
+                          {editingNetworkPort ? (
+                            <>
+                              <input
+                                type="number"
+                                value={networkPort}
+                                onChange={(e) => setNetworkPort(e.target.value)}
+                                className="border border-gray-200 rounded px-2 py-1 text-black w-20"
+                                placeholder="502"
+                              />
+                              <button
+                                onClick={handleNetworkPortSave}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingNetworkPort(false)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                ✗
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-black">{deviceDetails?.networkPort || 'Не указан'}</span>
+                              <button
+                                onClick={() => setEditingNetworkPort(true)}
+                                className="text-blue-600 hover:text-blue-800 ml-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Коэффициент трансформации */}
+                      <div className="text-base text-black/50 flex items-center justify-between">
+                        Коэффициент трансформации: 
+                        <div className="flex items-center gap-2">
+                          {editingKoeffTrans ? (
+                            <>
+                              <input
+                                type="number"
+                                step="0.001"
+                                value={koeffTrans}
+                                onChange={(e) => setKoeffTrans(e.target.value)}
+                                className="border border-gray-200 rounded px-2 py-1 text-black w-24"
+                                placeholder="1.000"
+                              />
+                              <button
+                                onClick={handleKoeffTransSave}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingKoeffTrans(false)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                ✗
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-black">{deviceDetails?.koeffTrans || '1.000'}</span>
+                              <button
+                                onClick={() => setEditingKoeffTrans(true)}
+                                className="text-blue-600 hover:text-blue-800 ml-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Время опроса */}
+                      <div className="text-base text-black/50 flex items-center justify-between">
+                        Время опроса (мс): 
+                        <div className="flex items-center gap-2">
+                          {editingScanInterval ? (
+                            <>
+                              <input
+                                type="number"
+                                min="10000"
+                                max="300000"
+                                value={deviceScanInterval}
+                                onChange={(e) => setDeviceScanInterval(parseInt(e.target.value) || 10000)}
+                                className="border border-gray-200 rounded px-2 py-1 text-black w-24"
+                                placeholder="10000"
+                              />
+                              <button
+                                onClick={handleDeviceScanIntervalSave}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingScanInterval(false)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                ✗
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-black">{deviceDetails?.scanInterval || '10000'} мс</span>
+                              <button
+                                onClick={() => setEditingScanInterval(true)}
+                                className="text-blue-600 hover:text-blue-800 ml-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
                                 <div className="text-base text-black/50">Производитель прибора: <span className="text-black">{objects[selectedObject].devices[selectedDevice].vendor}</span></div>
                                 <div className="text-base text-black/50">Модель: <span className="text-black">{objects[selectedObject].devices[selectedDevice].model}</span></div>
                                 <div className="text-base text-black/50">Серийный номер: <span className="text-black">{objects[selectedObject].devices[selectedDevice].serialNo}</span></div>
@@ -593,43 +943,6 @@ function Settings() {
         )}
 
         {active === 3 && (
-                <>
-                  <h2 className="text-xl font-semibold text-black mb-8">Время опроса</h2>
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-base text-black/50 mb-2">Глобальное время опроса (мс)</label>
-                      <input 
-                        type="number"
-                        value={scanInterval}
-                        onChange={(e) => setScanInterval(parseInt(e.target.value) || 0)}
-                        className="w-full h-15 px-6 py-4 bg-white/5 border border-gray-200 rounded-full text-base text-black" 
-                        placeholder="5000" 
-                        min="100"
-                        max="60000"
-                      />
-                      <div className="text-sm text-gray-500 mt-1">
-                        Введите время в миллисекундах (100-60000 мс). Текущее значение: {scanInterval} мс ({Math.round(scanInterval/1000*10)/10} сек)
-                      </div>
-                    </div>
-                    
-                    <div className="pt-8">
-                      <button 
-                        onClick={handleScanIntervalSave}
-                        disabled={scanIntervalLoading}
-                        className={`px-8 py-2 rounded-full text-sm font-semibold transition-colors ${
-                          scanIntervalLoading 
-                            ? 'bg-gray-400 text-white cursor-not-allowed' 
-                            : 'bg-black text-white hover:bg-gray-800'
-                        }`}
-                      >
-                        {scanIntervalLoading ? 'Сохранение...' : 'Сохранить'}
-                      </button>
-                    </div>
-                  </div>
-                </>
-        )}
-
-        {active === 4 && (
                 <>
                   <h2 className="text-xl font-semibold text-black mb-8">Подключение к серверу</h2>
                   <div className="space-y-6">

@@ -26,11 +26,13 @@ const API_URL = process.env.REACT_APP_API_URL;
 function Dashboard() {
   const [data, setData] = useState({ objects: [] });
   const [metrics, setMetrics] = useState({
-    monthlyConsumption: { electricityConsumption: 0, gasConsumption: 0 },
-    dailyConsumption: { electricityConsumption: 0, gasConsumption: 0 }
+    monthlyConsumption: [],
+    dailyConsumption: [],
+    previousDayConsumption: []
   });
   const [activeMenuItem, setActiveMenuItem] = useState(1); // 1 = Приборы учёта, 2 = Визуализация данных
   const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,6 +43,12 @@ function Dashboard() {
     
     // Загружаем метрики дашборда
     axios.get(`${API_URL}/api/Dashboard/metrics`).then(res => {
+      console.log('=== Dashboard Metrics Response ===');
+      console.log('Full response:', res.data);
+      console.log('Monthly consumption:', res.data.monthlyConsumption);
+      console.log('Daily consumption:', res.data.dailyConsumption);
+      console.log('Previous day consumption:', res.data.previousDayConsumption);
+      console.log('================================');
       setMetrics(res.data);
     }).catch(error => {
       console.error('Error fetching dashboard metrics:', error);
@@ -48,9 +56,8 @@ function Dashboard() {
     
     const userData = JSON.parse(localStorage.getItem("user"));
     setUser(userData);
+    setIsAdmin(userData?.isAdmin || false);
   }, []);
-
-
 
   const menuItems = [
     { id: 1, text: "Приборы учёта", icon: icon1, active: activeMenuItem === 1 },
@@ -59,7 +66,8 @@ function Dashboard() {
     { id: 4, text: "Журнал оповещений", icon: icon4, active: activeMenuItem === 4 },
     { id: 5, text: "Отчеты", icon: icon5, active: activeMenuItem === 5 },
     { id: 6, text: "Аварии", icon: icon6, active: activeMenuItem === 6 },
-    { id: 7, text: "Администрирование", icon: icon7, active: activeMenuItem === 7 }
+    // Показываем вкладку администрирования только администраторам
+    ...(isAdmin ? [{ id: 7, text: "Администрирование", icon: icon7, active: activeMenuItem === 7 }] : [])
   ];
 
   return (
@@ -82,7 +90,7 @@ function Dashboard() {
                 </div>
                 <div data-svg-wrapper className="left-[61.45px] top-[9.36px] absolute">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M2.58589 2.81722C3.25522 2.11602 4.37075 1.28734 5.07195 0.968614C5.77314 0.681762 6.92055 0.39491 8.89664 0.363037L8.00421 1.19172C7.52612 1.63794 7.01617 2.33913 6.82493 2.78534C6.6337 3.23156 6.50621 4.06024 6.50621 4.63395C6.50621 5.17578 6.79306 6.13195 7.14365 6.70566C7.49425 7.24749 8.19545 7.94868 8.73728 8.20366C9.27911 8.45864 10.2034 8.68175 10.809 8.68175C11.4146 8.68175 12.3389 8.45864 12.8807 8.20366C13.3907 7.94868 14.0919 7.27936 14.3787 6.7694C14.6974 6.22757 15.048 5.81323 15.1755 5.81323C15.3349 5.81323 15.4305 6.29131 15.4624 6.86502C15.4942 7.40685 15.4624 8.29928 15.4305 8.84111C15.3986 9.38294 15.1436 10.371 14.8249 11.0403C14.5381 11.7415 13.7413 12.8252 13.0082 13.4307C12.307 14.0682 11.0321 14.7694 10.1397 15.0244C9.24724 15.2793 7.97234 15.4068 7.14365 15.3112C6.34684 15.2156 5.23131 14.8969 4.68948 14.61C4.11577 14.3232 3.12773 13.5582 2.52215 12.9208C1.8847 12.2515 1.18351 11.0722 0.928526 10.2754C0.641674 9.47856 0.450439 8.42677 0.450439 7.88494C0.450439 7.34311 0.641674 6.29131 0.928526 5.4945C1.18351 4.69769 1.91657 3.48654 2.58589 2.81722Z" fill="#6C2126"/>
+                  <path d="M2.58589 2.81722C3.25522 2.11602 4.37075 1.28734 5.07195 0.968614C5.77314 0.681762 6.92055 0.39491 8.89664 0.363037L8.00421 1.19172C7.52612 1.63794 7.01617 2.33913 6.82493 2.78534C6.6337 3.23156 6.50621 4.06024 6.50621 4.63395C6.50621 5.17578 6.79306 6.13195 7.14365 6.70566C7.49425 7.24749 8.19545 7.94868 8.73728 8.20366C9.27911 8.68175 10.2034 8.45864 10.809 8.68175C11.4146 8.68175 12.3389 8.45864 12.8807 8.20366C13.3907 7.94868 14.0919 7.27936 14.3787 6.7694C14.6974 6.22757 15.048 5.81323 15.1755 5.81323C15.3349 5.81323 15.4305 6.29131 15.4624 6.86502C15.4942 7.40685 15.4624 8.29928 15.4305 8.84111C15.3986 9.38294 15.1436 10.371 14.8249 11.0403C14.5381 11.7415 13.7413 12.8252 13.0082 13.4307C12.307 14.0682 11.0321 14.7694 10.1397 15.0244C9.24724 15.2793 7.97234 15.4068 7.14365 15.3112C6.34684 15.2156 5.23131 14.8969 4.68948 14.61C4.11577 14.3232 3.12773 13.5582 2.52215 12.9208C1.8847 12.2515 1.18351 11.0722 0.928526 10.2754C0.641674 9.47856 0.450439 8.42677 0.450439 7.88494C0.450439 7.34311 0.641674 6.29131 0.928526 5.4945C1.18351 4.69769 1.91657 3.48654 2.58589 2.81722Z" fill="#6C2126"/>
                   </svg>
                 </div>
                 <div data-svg-wrapper className="left-[67.51px] top-[9.49px] absolute">
@@ -143,14 +151,25 @@ function Dashboard() {
           <div className="w-[1515px] h-14 bg-white/70 rounded-[20px] border border-neutral-400/30 mt-[30px] flex items-center justify-between px-6">
             {/* Metrics */}
             <div className="flex items-center gap-6">
+              {/* Расход за месяц */}
               <div className="flex flex-col items-center gap-1">
-                <div className="justify-start text-black/50 text-sm font-normal font-open-sans leading-none">Расход за месяц</div>
-                <div className="flex items-center gap-2">
-                  <img src={h1Icon} alt="h1" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.monthlyConsumption.electricityConsumption}</span>
-                  <img src={h2Icon} alt="h2" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.monthlyConsumption.gasConsumption}</span>
-                </div>
+                <div className="justify-start text-black/50 text-xs font-normal font-open-sans leading-none">Расход за месяц</div>
+                <select 
+                  className="text-xs border rounded px-2 py-1 w-32"
+                  onChange={(e) => {
+                    const selectedSite = metrics.monthlyConsumption?.find(site => site.siteName === e.target.value);
+                    if (selectedSite) {
+                      console.log('Выбран объект за месяц:', selectedSite);
+                    }
+                  }}
+                >
+                  <option value="">Выберите объект</option>
+                  {metrics.monthlyConsumption?.map((site, index) => (
+                    <option key={index} value={site.siteName}>
+                      {site.siteName}: ⚡{site.electricityConsumption} {site.gasConsumption > 0 ? `🔥${site.gasConsumption}` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div data-svg-wrapper>
@@ -159,19 +178,72 @@ function Dashboard() {
                 </svg>
               </div>
               
+              {/* Расход за день */}
               <div className="flex flex-col items-center gap-1">
-                <div className="justify-start text-black/50 text-sm font-normal font-open-sans leading-none">Расход за день</div>
-                <div className="flex items-center gap-2">
-                  <img src={h1Icon} alt="h1" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.dailyConsumption.electricityConsumption}</span>
-                  <img src={h2Icon} alt="h2" width="16" height="16" />
-                  <span className="text-sm font-semibold">~{metrics.dailyConsumption.gasConsumption}</span>
-                </div>
+                <div className="justify-start text-black/50 text-xs font-normal font-open-sans leading-none">Расход за день</div>
+                <select 
+                  className="text-xs border rounded px-2 py-1 w-32"
+                  onChange={(e) => {
+                    const selectedSite = metrics.dailyConsumption?.find(site => site.siteName === e.target.value);
+                    if (selectedSite) {
+                      console.log('Выбран объект за день:', selectedSite);
+                    }
+                  }}
+                >
+                  <option value="">Выберите объект</option>
+                  {metrics.dailyConsumption?.map((site, index) => (
+                    <option key={index} value={site.siteName}>
+                      {site.siteName}: ⚡{site.electricityConsumption} {site.gasConsumption > 0 ? `🔥${site.gasConsumption}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div data-svg-wrapper>
+                <svg width="2" height="40" viewBox="0 0 2 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1L1 39" stroke="black" strokeOpacity="0.1" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              {/* Расход за предыдущий день */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="justify-start text-black/50 text-xs font-normal font-open-sans leading-none">Расход за вчера</div>
+                <select 
+                  className="text-xs border rounded px-2 py-1 w-32"
+                  onChange={(e) => {
+                    const selectedSite = metrics.previousDayConsumption?.find(site => site.siteName === e.target.value);
+                    if (selectedSite) {
+                      console.log('Выбран объект за вчера:', selectedSite);
+                    }
+                  }}
+                >
+                  <option value="">Выберите объект</option>
+                  {metrics.previousDayConsumption?.map((site, index) => (
+                    <option key={index} value={site.siteName}>
+                      {site.siteName}: ⚡{site.electricityConsumption} {site.gasConsumption > 0 ? `🔥${site.gasConsumption}` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
             {/* User Menu */}
             <div className="flex items-center gap-4">
+              <button 
+                className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                onClick={() => {
+                  console.log('Обновляем данные дашборда...');
+                  axios.get(`${API_URL}/api/Dashboard/metrics`).then(res => {
+                    console.log('Обновленные данные:', res.data);
+                    setMetrics(res.data);
+                  }).catch(error => {
+                    console.error('Error refreshing dashboard metrics:', error);
+                  });
+                }}
+              >
+                Обновить
+              </button>
+              
               <div className="w-40 h-11 px-4 py-1 rounded-[100px] outline outline-1 outline-offset-[-1px] outline-gray-200 inline-flex justify-start items-center gap-2.5 cursor-pointer" onClick={() => navigate('/settings')}>
                 <div className="w-[0.84px] h-[0.67px]" />
                   <img src={settingsIcon} alt="h1" width="16" height="16" />
@@ -193,7 +265,7 @@ function Dashboard() {
           {activeMenuItem === 4 && <UserActionsLog />}
           {activeMenuItem === 5 && <Reports />}
           {activeMenuItem === 6 && <AlarmLog />}
-          {activeMenuItem === 7 && <Administration />}
+          {activeMenuItem === 7 && isAdmin && <Administration />}
         </main>
       </div>
 

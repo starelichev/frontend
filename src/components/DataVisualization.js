@@ -75,7 +75,8 @@ function DataVisualization() {
         }
       }
       
-      const response = await axios.get(`${API_URL}/api/Visualization/parameters/${deviceType}`);
+      // Используем новый endpoint для получения читаемых параметров
+      const response = await axios.get(`${API_URL}/api/Visualization/parameters-readable/${deviceType}`);
       setParameters(response.data);
     } catch (error) {
       console.error('Error fetching parameters:', error);
@@ -119,7 +120,22 @@ function DataVisualization() {
       });
 
       const response = await axios.get(`${API_URL}/api/Visualization/data?${params}`);
-      setData(response.data.data || []);
+      const responseData = response.data.data || [];
+      
+      // Отладочная информация
+      console.log('=== Отладка fetchData ===');
+      console.log('URL запроса:', `${API_URL}/api/Visualization/data?${params}`);
+      console.log('Ответ от сервера:', response.data);
+      console.log('Данные для отображения:', responseData);
+      console.log('Количество записей:', responseData.length);
+      if (responseData.length > 0) {
+        console.log('Структура первой записи:', responseData[0]);
+        console.log('Уникальные DeviceId в ответе:', [...new Set(responseData.map(item => item.deviceId))]);
+        console.log('Уникальные временные метки:', [...new Set(responseData.map(item => item.timestamp))]);
+      }
+      console.log('========================');
+      
+      setData(responseData);
     } catch (error) {
       console.error('Error fetching visualization data:', error);
       setData([]);
@@ -172,33 +188,23 @@ function DataVisualization() {
       // Получаем уникальные ID устройств
       const deviceIds = [...new Set(data.map(item => item.deviceId))];
       
-      // Подготавливаем данные для отчета с учетом нескольких счетчиков
-      const reportData = data.map(item => {
-        const reportItem = {
-          timestamp: new Date(item.timestamp),
-          deviceId: item.deviceId,
-          deviceName: item.deviceName,
-          objectName: item.objectName
-        };
-        
-        // Добавляем значения параметров для каждого устройства
-        selectedParameters.forEach(paramKey => {
-          if (item.values[paramKey] !== undefined) {
-            reportItem[paramKey] = item.values[paramKey];
-          }
-        });
-        
-        return reportItem;
-      });
+      // Подготавливаем данные для отчета в том же формате, что и таблица
+      const reportData = data.map(item => ({
+        timestamp: new Date(item.timestamp),
+        deviceId: item.deviceId,
+        deviceName: item.deviceName,
+        values: item.values
+      }));
 
       const requestData = {
         type: "data_visualization",
         name: `Отчет по данным ${new Date().toLocaleDateString('ru-RU')}`,
         createdByUserId: userData?.id || null,
         parameters: selectedParameters,
-        deviceIds: deviceIds,
         data: reportData
       };
+
+      console.log('Данные для отчета:', requestData);
 
       const response = await axios.post(`${API_URL}/api/Report/create-visualization`, requestData);
       
@@ -359,26 +365,32 @@ function DataVisualization() {
     }
   };
 
-  const getParameterDisplayName = (paramKey) => {
-    const param = parameters.find(p => p.parameters.includes(paramKey));
-    return param ? param.name : paramKey;
-  };
-
   // Группируем параметры по типам для отображения на одном графике
   const groupParametersByType = () => {
     const groups = {};
     
     selectedParameters.forEach(paramKey => {
-      const param = parameters.find(p => p.parameters.includes(paramKey));
-      if (param) {
-        const groupKey = param.name.split(' ')[0]; // Берем первое слово как группу (например, "Напряжение", "Ток")
+      // Ищем параметр в новой структуре данных
+      let paramGroup = null;
+      let paramItem = null;
+      
+      for (const group of parameters) {
+        paramItem = group.parameters.find(p => p.code === paramKey);
+        if (paramItem) {
+          paramGroup = group;
+          break;
+        }
+      }
+      
+      if (paramGroup && paramItem) {
+        const groupKey = paramGroup.name.split(' ')[0]; // Берем первое слово как группу (например, "Напряжение", "Ток")
         if (!groups[groupKey]) {
           groups[groupKey] = [];
         }
         groups[groupKey].push({
           key: paramKey,
-          name: param.name,
-          displayName: getParameterDisplayName(paramKey)
+          name: paramGroup.name,
+          displayName: paramItem.fullName
         });
       }
     });
@@ -502,21 +514,55 @@ function DataVisualization() {
     // Получаем уникальные ID устройств
     const deviceIds = [...new Set(data.map(item => item.deviceId))];
     
+    // Отладочная информация
+    console.log('=== Отладка таблицы ===');
+    console.log('Всего записей:', data.length);
+    console.log('Уникальные DeviceId:', deviceIds);
+    console.log('Выбранные параметры:', selectedParameters);
+    console.log('Первые несколько записей:', data.slice(0, 3));
+    
     // Создаем колонки для выбранных параметров и устройств
     const columns = [
       { key: 'timestamp', name: 'Дата и время' },
       ...selectedParameters.flatMap(paramKey => 
         deviceIds.map(deviceId => {
           const deviceName = data.find(item => item.deviceId === deviceId)?.deviceName || `Device ${deviceId}`;
+          // Находим читаемое название параметра
+          let paramDisplayName = paramKey;
+          for (const paramGroup of parameters) {
+            const param = paramGroup.parameters.find(p => p.code === paramKey);
+            if (param) {
+              paramDisplayName = param.fullName;
+              break;
+            }
+          }
           return {
             key: `${paramKey}_${deviceId}`,
-            name: `${paramKey} - ${deviceName}`,
+            name: `${paramDisplayName} - ${deviceName}`,
             paramKey,
             deviceId
           };
         })
       )
     ];
+
+    // Группируем данные по времени для правильного отображения
+    const timeGroups = {};
+    data.forEach(item => {
+      const timeKey = item.timestamp;
+      if (!timeGroups[timeKey]) {
+        timeGroups[timeKey] = {};
+      }
+      timeGroups[timeKey][item.deviceId] = item;
+    });
+
+    // Получаем отсортированные временные метки
+    const sortedTimestamps = Object.keys(timeGroups).sort();
+    
+    console.log('Группировка по времени:', timeGroups);
+    console.log('Отсортированные временные метки:', sortedTimestamps);
+    console.log('Количество временных групп:', sortedTimestamps.length);
+    console.log('========================');
 
     return (
       <div className="bg-white rounded border overflow-auto max-h-full">
@@ -529,18 +575,28 @@ function DataVisualization() {
             </tr>
           </thead>
           <tbody>
-            {data.map((row, idx) => (
-              <tr key={idx}>
-                {columns.map((col, colIdx) => (
-                  <td key={colIdx} className="border p-2">
-                    {col.key === 'timestamp' 
-                      ? new Date(row.timestamp).toLocaleString('ru-RU')
-                      : row.values[col.paramKey]?.toFixed(3) || '0.000'
-                    }
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {sortedTimestamps.map((timestamp, idx) => {
+              const timeGroup = timeGroups[timestamp];
+              return (
+                <tr key={idx}>
+                  {columns.map((col, colIdx) => (
+                    <td key={colIdx} className="border p-2">
+                      {col.key === 'timestamp' 
+                        ? new Date(timestamp).toLocaleString('ru-RU')
+                        : (() => {
+                            // Находим данные для конкретного устройства и параметра
+                            const deviceData = timeGroup[col.deviceId];
+                            if (deviceData && deviceData.values && deviceData.values[col.paramKey] !== undefined) {
+                              return deviceData.values[col.paramKey].toFixed(3);
+                            }
+                            return '0.000';
+                          })()
+                      }
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -829,14 +885,16 @@ function DataVisualization() {
                 </label>
                 <div className="ml-4 mt-2 space-y-1 max-h-32 overflow-y-auto">
                   {paramGroup.parameters.map((param) => (
-                    <label key={param} className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
+                    <label key={param.code} className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
                       <input 
                         type="checkbox" 
-                        checked={selectedParameters.includes(param)}
-                        onChange={() => handleParameterToggle(param)}
+                        checked={selectedParameters.includes(param.code)}
+                        onChange={() => handleParameterToggle(param.code)}
                         className="mr-2 w-4 h-4 text-red-700 border-gray-300 rounded focus:ring-red-500"
                       />
-                      <span className="text-sm font-open-sans text-gray-600">{param}</span>
+                      <span className="text-sm font-open-sans text-gray-600" title={param.shortName}>
+                        {param.fullName}
+                      </span>
                     </label>
                   ))}
                 </div>

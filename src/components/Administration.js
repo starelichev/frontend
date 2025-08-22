@@ -6,6 +6,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 function Administration() {
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
   const [showAddForm, setShowAddForm] = useState(true);
@@ -18,11 +19,13 @@ function Administration() {
     name: '',
     surname: '',
     patronymic: '',
-    phone: ''
+    phone: '',
+    roleId: 1 // По умолчанию обычный пользователь
   });
 
   useEffect(() => {
     fetchUsers();
+    fetchRoles();
   }, []);
 
   const fetchUsers = async () => {
@@ -42,31 +45,39 @@ function Administration() {
           name: 'Сергей',
           surname: 'Прохорцев',
           patronymic: 'Сергеевич',
-          phone: '+7 876 766 67 67'
+          phone: '+7 876 766 67 67',
+          role: 'Обычный пользователь',
+          isAdmin: false
         },
         {
           id: 2,
-          login: 'serg1122',
-          password: 'dsfyfdsf345345',
-          email: 'sp@gmail.com',
-          name: 'Сергей',
-          surname: 'Прохорцев',
-          patronymic: 'Сергеевич',
-          phone: '+7 876 766 67 67'
-        },
-        {
-          id: 3,
-          login: 'serg1122',
-          password: 'dsfyfdsf345345',
-          email: 'sp@gmail.com',
-          name: 'Сергей',
-          surname: 'Прохорцев',
-          patronymic: 'Сергеевич',
-          phone: '+7 876 766 67 67'
+          login: 'anna_ivanova',
+          password: 'password123',
+          email: 'anna.ivanova@example.com',
+          name: 'Анна',
+          surname: 'Иванова',
+          patronymic: 'Петровна',
+          phone: '+7 912 345 67 89',
+          role: 'Администратор',
+          isAdmin: true
         }
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRoles = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/Admin/roles`);
+      setRoles(response.data);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+      // Mock data for development
+      setRoles([
+        { id: 1, name: 'Обычный пользователь', roleCode: 1 },
+        { id: 2, name: 'Администратор', roleCode: 2 }
+      ]);
     }
   };
 
@@ -86,7 +97,8 @@ function Administration() {
       name: '',
       surname: '',
       patronymic: '',
-      phone: ''
+      phone: '',
+      roleId: 1
     });
     setEditingUser(null);
   };
@@ -98,6 +110,7 @@ function Administration() {
       if (editingUser) {
         // Обновление пользователя
         await axios.put(`${API_URL}/api/Admin/users/${editingUser.id}`, formData);
+        setEditingUser(null);
       } else {
         // Создание нового пользователя
         await axios.post(`${API_URL}/api/Admin/users`, formData);
@@ -107,165 +120,166 @@ function Administration() {
       fetchUsers();
     } catch (error) {
       console.error('Error saving user:', error);
-      alert('Ошибка при сохранении пользователя');
+      alert(error.response?.data?.message || 'Ошибка при сохранении пользователя');
     }
   };
 
   const handleEdit = (user) => {
     setEditingUser(user);
     setFormData({
-      login: user.login,
-      password: user.password,
-      email: user.email,
-      name: user.name,
-      surname: user.surname,
-      patronymic: user.patronymic,
-      phone: user.phone
+      login: user.login || '',
+      password: user.password || '',
+      email: user.email || '',
+      name: user.name || '',
+      surname: user.surname || '',
+      patronymic: user.patronymic || '',
+      phone: user.phone || '',
+      roleId: user.isAdmin ? 2 : 1
     });
   };
 
   const handleDelete = async (userId) => {
-    if (!window.confirm('Вы уверены, что хотите удалить этого пользователя?')) {
-      return;
-    }
-
-    try {
-      await axios.delete(`${API_URL}/api/Admin/users/${userId}`);
-      fetchUsers();
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert('Ошибка при удалении пользователя');
+    if (window.confirm('Вы уверены, что хотите удалить этого пользователя?')) {
+      try {
+        await axios.delete(`${API_URL}/api/Admin/users/${userId}`);
+        fetchUsers();
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        alert('Ошибка при удалении пользователя');
+      }
     }
   };
 
+  const getRoleName = (roleId) => {
+    const role = roles.find(r => r.id === roleId);
+    return role ? role.name : 'Неизвестно';
+  };
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-64">Загрузка...</div>;
+  }
+
   return (
-    <div className="w-[1515px] h-[865px] bg-white rounded-[10px] border border-neutral-400/20 mt-[30px] p-6">
-      <div className="flex gap-6 h-full">
-        {/* Левая панель - Форма добавления */}
-        <div className="w-80 bg-white/70 rounded-[10px] border border-neutral-400/20 p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Plus className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold font-open-sans text-gray-800">
-              {editingUser ? 'Редактирование пользователя' : 'Добавление пользователей'}
-            </h2>
-          </div>
-          
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Администрирование пользователей</h1>
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          {showAddForm ? 'Скрыть форму' : 'Добавить пользователя'}
+        </button>
+      </div>
+
+      {/* Форма добавления/редактирования */}
+      {showAddForm && (
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h2 className="text-lg font-semibold mb-4">
+            {editingUser ? 'Редактировать пользователя' : 'Добавить нового пользователя'}
+          </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 font-open-sans">
-                Имя
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-open-sans"
-                placeholder="Имя"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Логин</label>
+                <input
+                  type="text"
+                  name="login"
+                  value={formData.login}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Имя</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Фамилия</label>
+                <input
+                  type="text"
+                  name="surname"
+                  value={formData.surname}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Отчество</label>
+                <input
+                  type="text"
+                  name="patronymic"
+                  value={formData.patronymic}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+                <input
+                  type="text"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Роль</label>
+                <select
+                  name="roleId"
+                  value={formData.roleId}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  {roles.map(role => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 font-open-sans">
-                Фамилия
-              </label>
-              <input
-                type="text"
-                name="surname"
-                value={formData.surname}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-open-sans"
-                placeholder="Фамилия"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 font-open-sans">
-                Отчество
-              </label>
-              <input
-                type="text"
-                name="patronymic"
-                value={formData.patronymic}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-open-sans"
-                placeholder="Отчество"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 font-open-sans">
-                Email
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-open-sans"
-                placeholder="Email"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 font-open-sans">
-                Телефон
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-open-sans"
-                placeholder="Телефон"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 font-open-sans">
-                Логин
-              </label>
-              <input
-                type="text"
-                name="login"
-                value={formData.login}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-open-sans"
-                placeholder="Логин"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 font-open-sans">
-                Пароль
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-open-sans"
-                placeholder="Пароль"
-                required={!editingUser}
-              />
-            </div>
-            
-            <div className="flex gap-2 pt-4">
+            <div className="flex gap-2">
               <button
                 type="submit"
-                className="flex-1 bg-black text-white py-2 px-4 rounded-lg font-open-sans text-sm font-medium hover:bg-gray-800 transition-colors"
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
               >
-                {editingUser ? 'Сохранить' : 'Добавить'}
+                {editingUser ? 'Обновить' : 'Добавить'}
               </button>
               {editingUser && (
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 border border-gray-300 rounded-lg font-open-sans text-sm font-medium hover:bg-gray-50 transition-colors"
+                  className="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors"
                 >
                   Отмена
                 </button>
@@ -273,86 +287,63 @@ function Administration() {
             </div>
           </form>
         </div>
+      )}
 
-        {/* Правая панель - Таблица пользователей */}
-        <div className="flex-1 bg-white/70 rounded-[10px] border border-neutral-400/20 p-4">
-          <h2 className="text-lg font-semibold font-open-sans text-gray-800 mb-4">
-            Все пользователи
-          </h2>
-          
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="text-gray-500 font-open-sans">Загрузка пользователей...</div>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 font-open-sans border-b">
-                      Действия
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 font-open-sans border-b">
-                      Логин
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 font-open-sans border-b">
-                      Пароль
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 font-open-sans border-b">
-                      Email
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 font-open-sans border-b">
-                      Имя
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 font-open-sans border-b">
-                      Фамилия
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 font-open-sans border-b">
-                      Отчество
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 font-open-sans border-b">
-                      Телефон
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr 
-                      key={user.id} 
-                      className="border-b hover:bg-gray-50 transition-colors"
+      {/* Таблица пользователей */}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Пользователь</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Контактная информация</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Роль</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {users.map((user) => (
+              <tr key={user.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {user.surname} {user.name} {user.patronymic}
+                    </div>
+                    <div className="text-sm text-gray-500">{user.login}</div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">{user.email}</div>
+                  <div className="text-sm text-gray-500">{user.phone}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    user.isAdmin 
+                      ? 'bg-red-100 text-red-800' 
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    {user.role}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEdit(user)}
+                      className="text-indigo-600 hover:text-indigo-900"
                     >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEdit(user)}
-                            className="p-1 text-gray-600 hover:text-blue-600 transition-colors"
-                            title="Редактировать"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(user.id)}
-                            className="p-1 text-gray-600 hover:text-red-600 transition-colors"
-                            title="Удалить"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm font-open-sans">{user.login}</td>
-                      <td className="px-4 py-3 text-sm font-open-sans">{user.password}</td>
-                      <td className="px-4 py-3 text-sm font-open-sans">{user.email}</td>
-                      <td className="px-4 py-3 text-sm font-open-sans">{user.name}</td>
-                      <td className="px-4 py-3 text-sm font-open-sans">{user.surname}</td>
-                      <td className="px-4 py-3 text-sm font-open-sans">{user.patronymic}</td>
-                      <td className="px-4 py-3 text-sm font-open-sans">{user.phone}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(user.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
