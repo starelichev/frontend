@@ -409,11 +409,11 @@ function DeviceAccounting() {
   };
 
   return (
-    <div className="w-[1515px] h-[865px] bg-white rounded-[10px] border border-neutral-400/20 mt-[30px] p-6">
+    <div className="w-full max-w-full h-auto min-h-[865px] bg-white rounded-[10px] border border-neutral-400/20 mt-4 xl:mt-[30px] p-4 lg:p-6">
       {/* Filter Tabs */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-wrap gap-2 lg:gap-4 mb-6">
         <button 
-          className={`w-32 h-8 px-4 py-1 rounded-[100px] inline-flex justify-start items-center gap-2.5 ${tab === 0 ? 'bg-red-700' : 'bg-white border border-gray-300'}`} 
+          className={`w-full sm:w-32 h-8 px-4 py-1 rounded-[100px] inline-flex justify-start items-center gap-2.5 ${tab === 0 ? 'bg-red-700' : 'bg-white border border-gray-300'}`} 
           onClick={() => setTab(0)}
         >
           <div className={`text-center justify-start text-sm font-semibold font-open-sans ${tab === 0 ? 'text-white' : 'text-black'}`}>
@@ -423,7 +423,7 @@ function DeviceAccounting() {
         {objects.map((obj, idx) => (
           <button 
             key={obj.id} 
-            className={`w-32 h-8 px-4 py-1 rounded-[100px] inline-flex justify-start items-center gap-2.5 ${tab === idx + 1 ? 'bg-red-700' : 'bg-white border border-gray-300'}`}
+            className={`w-full sm:w-32 h-8 px-4 py-1 rounded-[100px] inline-flex justify-start items-center gap-2.5 ${tab === idx + 1 ? 'bg-red-700' : 'bg-white border border-gray-300'}`}
             onClick={() => setTab(idx + 1)}
           >
             <div className={`text-center justify-start text-sm font-semibold font-open-sans ${tab === idx + 1 ? 'text-white' : 'text-black'}`}>
@@ -434,15 +434,15 @@ function DeviceAccounting() {
       </div>
 
       {/* Divider Line */}
-      <div className="w-[845px] h-0 outline outline-1 outline-offset-[-0.50px] outline-black/10 mb-8"></div>
+      <div className="w-full h-0 outline outline-1 outline-offset-[-0.50px] outline-black/10 mb-8"></div>
 
       {/* Device Cards Grid */}
-      <div className="grid grid-cols-5 gap-4 overflow-y-auto max-h-[700px]">
+      <div className="grid-responsive overflow-y-auto max-h-[700px]">
         {filteredDevices && filteredDevices.length > 0 ? (
           filteredDevices.map((dev) => (
             <div 
               key={`device-${dev.id}`} 
-              className="w-64 h-80 bg-white rounded-[10px] border border-neutral-400/50 cursor-pointer hover:shadow-md p-4 flex flex-col"
+              className="w-full max-w-64 h-80 bg-white rounded-[10px] border border-neutral-400/50 cursor-pointer hover:shadow-md p-4 flex flex-col"
               onClick={() => handleDeviceClick(dev.id)}
             >
               {/* Card Header with adaptive white pill */}

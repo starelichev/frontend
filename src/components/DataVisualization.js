@@ -4,11 +4,22 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
+// Функция для получения локального времени в формате datetime-local
+const getLocalDateTime = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 function DataVisualization() {
   const [activeTab, setActiveTab] = useState('graph'); // 'graph' or 'table'
   const [period, setPeriod] = useState('last2days');
-  const [dateFrom, setDateFrom] = useState('2025-09-06');
-  const [dateTo, setDateTo] = useState('2025-09-08');
+  const [dateFrom, setDateFrom] = useState(getLocalDateTime());
+  const [dateTo, setDateTo] = useState(getLocalDateTime());
   const [selectedObjects, setSelectedObjects] = useState([]);
   const [selectedDeviceTypes, setSelectedDeviceTypes] = useState([]);
   const [selectedMeters, setSelectedMeters] = useState([]); // Изменено с null на [] для множественного выбора
@@ -432,21 +443,6 @@ function DataVisualization() {
     
     return (
       <div className="mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <label className="flex items-center gap-2">
-            <span>Агрегация данных:</span>
-            <select
-              value={aggregation}
-              onChange={(e) => setAggregation(e.target.value)}
-              className="border rounded px-2 py-1"
-            >
-              <option value="minute">По минутам</option>
-              <option value="hour">По часам</option>
-              <option value="day">По дням</option>
-            </select>
-          </label>
-        </div>
-        
         {Object.entries(parameterGroups).map(([type, params]) => (
           <div key={type} className="mb-8">
             <h3 className="text-lg font-semibold mb-4">{type}</h3>
@@ -604,14 +600,14 @@ function DataVisualization() {
   };
 
   return (
-    <div className="w-[1515px] h-[865px] mt-[30px]">
-      <div className="flex gap-6 h-full">
+    <div className="w-full max-w-full h-auto min-h-[865px] mt-4 xl:mt-[30px]">
+      <div className="flex flex-col xl:flex-row gap-4 xl:gap-6 h-full">
         {/* Left Control Panel */}
-        <div className="w-72 bg-white/70 rounded-[10px] border border-neutral-400/20 p-4 flex flex-col gap-4 overflow-y-auto max-h-full">
+        <div className="w-full xl:w-72 bg-white/70 rounded-[10px] border border-neutral-400/20 p-4 flex flex-col gap-4 overflow-y-auto max-h-full">
           {/* Period Selection Section */}
           <div>
             <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Период</h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
               <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
                 <input 
                   type="radio" 
@@ -622,6 +618,17 @@ function DataVisualization() {
                   className="mr-2 w-4 h-4 text-red-700 border-gray-300 focus:ring-red-500"
                 />
                 <span className="text-sm font-open-sans text-gray-700">За два дня</span>
+              </label>
+              <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
+                <input 
+                  type="radio" 
+                  name="period" 
+                  value="lastDay" 
+                  checked={period === 'lastDay'}
+                  onChange={(e) => setPeriod(e.target.value)}
+                  className="mr-2 w-4 h-4 text-red-700 border-gray-300 focus:ring-red-500"
+                />
+                <span className="text-sm font-open-sans text-gray-700">За прошлые сутки</span>
               </label>
               <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
                 <input 
@@ -687,7 +694,7 @@ function DataVisualization() {
                     От:
                   </label>
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
                     max={dateTo}
@@ -699,7 +706,7 @@ function DataVisualization() {
                     До:
                   </label>
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
                     min={dateFrom}
@@ -715,8 +722,8 @@ function DataVisualization() {
                   onClick={() => {
                     const twoDaysAgo = new Date();
                     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-                    setDateFrom(twoDaysAgo.toISOString().split('T')[0]);
-                    setDateTo(new Date().toISOString().split('T')[0]);
+                    setDateFrom(getLocalDateTime(twoDaysAgo));
+                    setDateTo(getLocalDateTime());
                   }}
                   className="w-full px-3 py-2 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
                 >
@@ -724,12 +731,52 @@ function DataVisualization() {
                 </button>
               </div>
             )}
+            
+            {/* Aggregation Selection */}
+            <div className="mt-4">
+              <h4 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Агрегация данных</h4>
+              <div className="space-y-2">
+                <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
+                  <input 
+                    type="radio" 
+                    name="aggregation" 
+                    value="minute" 
+                    checked={aggregation === 'minute'}
+                    onChange={(e) => setAggregation(e.target.value)}
+                    className="mr-2 w-4 h-4 text-red-700 border-gray-300 focus:ring-red-500"
+                  />
+                  <span className="text-sm font-open-sans text-gray-700">По минутам</span>
+                </label>
+                <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
+                  <input 
+                    type="radio" 
+                    name="aggregation" 
+                    value="hour" 
+                    checked={aggregation === 'hour'}
+                    onChange={(e) => setAggregation(e.target.value)}
+                    className="mr-2 w-4 h-4 text-red-700 border-gray-300 focus:ring-red-500"
+                  />
+                  <span className="text-sm font-open-sans text-gray-700">По часам</span>
+                </label>
+                <label className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer transition-colors duration-200">
+                  <input 
+                    type="radio" 
+                    name="aggregation" 
+                    value="day" 
+                    checked={aggregation === 'day'}
+                    onChange={(e) => setAggregation(e.target.value)}
+                    className="mr-2 w-4 h-4 text-red-700 border-gray-300 focus:ring-red-500"
+                  />
+                  <span className="text-sm font-open-sans text-gray-700">По дням</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* Objects Section */}
           <div className="mt-4">
             <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Список объектов</h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
               {objects.map((obj) => (
                 <label key={obj.id} className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
                   <input
@@ -747,7 +794,7 @@ function DataVisualization() {
           {/* Device Types Section */}
           <div className="mt-4">
             <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Тип устройства</h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
               {deviceTypes.map((deviceType) => (
                 <label key={deviceType.id} className="flex items-center hover:bg-gray-50 p-1 rounded cursor-pointer">
                   <input
@@ -769,7 +816,7 @@ function DataVisualization() {
           {/* Meters Section */}
           <div className="mt-4">
             <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Счетчики</h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
               {filteredMeters.map((meter) => (
                 <div 
                   key={meter.id} 
@@ -793,6 +840,7 @@ function DataVisualization() {
             </div>
           </div>
 
+
           {/* Apply Button */}
           <button
             onClick={fetchData}
@@ -804,9 +852,9 @@ function DataVisualization() {
         </div>
 
         {/* Central Data Display */}
-        <div className="w-[865px] h-[865px] bg-white/70 rounded-[10px] border border-neutral-400/20 p-4 flex flex-col">
+        <div className="w-full xl:w-[865px] h-auto min-h-[865px] bg-white/70 rounded-[10px] border border-neutral-400/20 p-4 flex flex-col">
           {/* Tabs */}
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col lg:flex-row justify-between items-center mb-4 gap-4">
             <div className="flex">
               <button 
                 className={`px-6 py-3 rounded-t-lg font-open-sans text-sm font-medium transition-colors ${
@@ -871,10 +919,10 @@ function DataVisualization() {
         </div>
 
         {/* Right Parameters Panel */}
-        <div className="w-[362px] bg-white/70 rounded-[10px] border border-neutral-400/20 p-4 flex flex-col">
+        <div className="w-full xl:w-[362px] bg-white/70 rounded-[10px] border border-neutral-400/20 p-4 flex flex-col">
           <h3 className="font-semibold text-sm mb-3 font-open-sans text-gray-800">Параметры</h3>
           
-          <div className="space-y-2 flex-1 overflow-y-auto pr-2">
+          <div className="space-y-2">
             {parameters.map((paramGroup) => (
               <div key={paramGroup.key} className="border-b border-gray-200 pb-3 mb-3">
                 <label className="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer">
@@ -901,14 +949,6 @@ function DataVisualization() {
               </div>
             ))}
           </div>
-
-          <button 
-            className="w-full bg-black text-white py-3 rounded-lg font-open-sans text-sm font-medium mt-auto hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            onClick={fetchData}
-            disabled={loading}
-          >
-            {loading ? 'Загрузка...' : 'Применить'}
-          </button>
         </div>
       </div>
     </div>

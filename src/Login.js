@@ -59,7 +59,7 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
       <div className="relative w-full max-w-[400px]">
         {/* Main card */}
         <div className="bg-white rounded-[10px] border border-[#e3e3e3] shadow-[0_2px_3.1px_0_rgba(2,2,2,0.10)] px-6 py-8 relative">

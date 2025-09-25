@@ -398,9 +398,9 @@ function Settings() {
         {/* Main Container */}
         <div className="relative bg-gray-100 h-full">
 
-                      <div className="flex h-screen">
+                      <div className="flex flex-col lg:flex-row h-screen">
               {/* Sidebar */}
-              <div className="w-72 bg-white/70 backdrop-blur-sm border-r border-gray-300/30 p-6">
+              <div className="w-full lg:w-72 bg-white/70 backdrop-blur-sm border-r border-gray-300/30 p-6">
               <h2 className="text-xl font-semibold text-black mb-8">Настройки</h2>
               
               <div className="space-y-3">
@@ -469,7 +469,7 @@ function Settings() {
             </div>
 
                           {/* Content Area */}
-              <div className="flex-1 bg-white/70 backdrop-blur-sm p-6 overflow-y-auto">
+              <div className="flex-1 bg-white/70 backdrop-blur-sm p-4 lg:p-6 overflow-y-auto">
         {/* Профиль */}
         {active === 0 && (
                 <>
@@ -596,8 +596,8 @@ function Settings() {
         {active === 2 && (
                 <>
                   <h2 className="text-xl font-semibold text-black mb-8">Объекты и счетчики</h2>
-                  <div className="flex gap-8">
-                    <div className="w-1/3 border-r border-gray-200 pr-4">
+                  <div className="flex flex-col lg:flex-row gap-8">
+                    <div className="w-full lg:w-1/3 border-r border-gray-200 pr-4">
                       <h3 className="text-lg font-semibold text-black mb-4">Список объектов</h3>
               <ul className="space-y-2">
                 {objects.map((obj, idx) => (
@@ -626,7 +626,7 @@ function Settings() {
                 ))}
               </ul>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 w-full">
               {objects[selectedObject] && (
                 <>
                           <h3 className="text-lg font-semibold text-black mb-4">{objects[selectedObject].name || `Объект ${selectedObject + 1}`}</h3>

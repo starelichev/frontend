@@ -72,9 +72,9 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="flex">
+      <div className="flex-responsive">
         {/* Left Sidebar */}
-        <div className="w-80 h-[950px] bg-white/70 rounded-[20px] border border-neutral-400/30 m-[30px]">
+        <div className="w-full xl:w-80 xl:h-[950px] bg-white/70 rounded-[20px] border border-neutral-400/30 m-4 xl:m-[30px] xl:mr-4">
           <div className="p-6">
             {/* Logo */}
             <div className="flex items-center gap-6 mb-6">
@@ -146,11 +146,11 @@ function Dashboard() {
         </div>
 
         {/* Main Content */}
-        <main className="flex-1">
+        <main className="flex-1 w-full">
           {/* Header */}
-          <div className="w-[1515px] h-14 bg-white/70 rounded-[20px] border border-neutral-400/30 mt-[30px] flex items-center justify-between px-6">
+          <div className="w-full h-14 bg-white/70 rounded-[20px] border border-neutral-400/30 mt-4 xl:mt-[30px] flex flex-col lg:flex-row items-center justify-between px-4 lg:px-6 gap-4">
             {/* Metrics */}
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col lg:flex-row items-center gap-4 lg:gap-6">
               {/* Расход за месяц */}
               <div className="flex flex-col items-center gap-1">
                 <div className="justify-start text-black/50 text-xs font-normal font-open-sans leading-none">Расход за месяц</div>
@@ -228,7 +228,7 @@ function Dashboard() {
             </div>
 
             {/* User Menu */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
               <button 
                 className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
                 onClick={() => {
@@ -272,7 +272,7 @@ function Dashboard() {
 
       
       {/* Footer */}
-      <div className="w-[1860px] h-11 bg-white/70 rounded-[10px] border border-neutral-400/50 flex items-center justify-between px-4 mt-[4px] ml-[30px]">
+      <div className="w-full h-11 bg-white/70 rounded-[10px] border border-neutral-400/50 flex flex-col lg:flex-row items-center justify-between px-4 mt-4 mx-4 xl:ml-[30px] gap-2">
         <div className="text-sm text-gray-700 font-open-sans">
           IP-адрес: 198748385
         </div>
