@@ -47,11 +47,17 @@ function Settings() {
   const [editingNetworkPort, setEditingNetworkPort] = useState(false);
   const [editingKoeffTrans, setEditingKoeffTrans] = useState(false);
   const [editingScanInterval, setEditingScanInterval] = useState(false);
+  const [editingSortId, setEditingSortId] = useState(false);
+  const [editingDevAddr, setEditingDevAddr] = useState(false);
+  const [editingActive, setEditingActive] = useState(false);
   const [deviceName, setDeviceName] = useState("");
   const [ipAddress, setIpAddress] = useState("");
   const [networkPort, setNetworkPort] = useState("");
   const [koeffTrans, setKoeffTrans] = useState(1.0);
   const [deviceScanInterval, setDeviceScanInterval] = useState(10000);
+  const [sortId, setSortId] = useState("");
+  const [devAddr, setDevAddr] = useState("");
+  const [deviceActive, setDeviceActive] = useState(true);
   const [deviceDetails, setDeviceDetails] = useState(null);
 
   useEffect(() => {
@@ -110,6 +116,9 @@ function Settings() {
       setNetworkPort(details.networkPort || "");
       setKoeffTrans(details.koeffTrans || 1.0);
       setDeviceScanInterval(details.scanInterval || 10000);
+      setSortId(details.sortId || "");
+      setDevAddr(details.devAddr !== null && details.devAddr !== undefined ? details.devAddr.toString() : "");
+      setDeviceActive(details.active !== undefined ? details.active : true);
     } catch (error) {
       console.error('Ошибка при загрузке деталей устройства:', error);
     }
@@ -389,6 +398,86 @@ function Settings() {
       alert("Время опроса устройства успешно обновлено");
     } catch (error) {
       alert("Ошибка при обновлении времени опроса устройства");
+    }
+  };
+
+  const handleSortIdSave = async () => {
+    try {
+      const deviceId = objects[selectedObject].devices[selectedDevice].id;
+      
+      await axios.put(`${API_URL}/api/Device/edit`, {
+        id: deviceId,
+        sortId: parseInt(sortId) || null
+      });
+      
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          sortId: parseInt(sortId) || null
+        });
+      }
+      
+      setEditingSortId(false);
+      alert("ID сортировки устройства успешно обновлен");
+    } catch (error) {
+      alert("Ошибка при обновлении ID сортировки устройства");
+    }
+  };
+
+  const handleDevAddrSave = async () => {
+    try {
+      const deviceId = objects[selectedObject].devices[selectedDevice].id;
+      
+      await axios.put(`${API_URL}/api/Device/edit`, {
+        id: deviceId,
+        devAddr: parseInt(devAddr) || null
+      });
+      
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          devAddr: parseInt(devAddr) || null
+        });
+      }
+      
+      setEditingDevAddr(false);
+      alert("Сетевой адрес счетчика успешно обновлен");
+    } catch (error) {
+      alert("Ошибка при обновлении сетевого адреса счетчика");
+    }
+  };
+
+  const handleActiveSave = async () => {
+    try {
+      const deviceId = objects[selectedObject].devices[selectedDevice].id;
+      const user = JSON.parse(localStorage.getItem("user"));
+      
+      await axios.put(`${API_URL}/api/Device/edit`, {
+        id: deviceId,
+        active: deviceActive,
+        userId: user?.id
+      });
+      
+      // Обновляем локальное состояние deviceDetails
+      if (deviceDetails) {
+        setDeviceDetails({
+          ...deviceDetails,
+          active: deviceActive
+        });
+      }
+      
+      // Обновляем данные в локальном состоянии объектов
+      const updatedObjects = [...objects];
+      updatedObjects[selectedObject].devices[selectedDevice].active = deviceActive;
+      setObjects(updatedObjects);
+      
+      setEditingActive(false);
+      alert(`Устройство ${deviceActive ? 'включено' : 'выключено'}`);
+    } catch (error) {
+      console.error('Ошибка при изменении статуса устройства:', error);
+      alert("Ошибка при изменении статуса устройства");
     }
   };
 
@@ -828,6 +917,132 @@ function Settings() {
                               <span className="text-black">{deviceDetails?.scanInterval || '10000'} мс</span>
                               <button
                                 onClick={() => setEditingScanInterval(true)}
+                                className="text-blue-600 hover:text-blue-800 ml-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ID сортировки */}
+                      <div className="text-base text-black/50 flex items-center justify-between">
+                        ID сортировки: 
+                        <div className="flex items-center gap-2">
+                          {editingSortId ? (
+                            <>
+                              <input
+                                type="number"
+                                min="1"
+                                value={sortId}
+                                onChange={(e) => setSortId(e.target.value)}
+                                className="border border-gray-200 rounded px-2 py-1 text-black w-24"
+                                placeholder="1"
+                              />
+                              <button
+                                onClick={handleSortIdSave}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingSortId(false)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                ✗
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-black">{deviceDetails?.sortId || 'Не задан'}</span>
+                              <button
+                                onClick={() => setEditingSortId(true)}
+                                className="text-blue-600 hover:text-blue-800 ml-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Сетевой адрес счетчика */}
+                      <div className="text-base text-black/50 flex items-center justify-between">
+                        Сетевой адрес счетчика: 
+                        <div className="flex items-center gap-2">
+                          {editingDevAddr ? (
+                            <>
+                              <input
+                                type="number"
+                                min="1"
+                                max="255"
+                                value={devAddr}
+                                onChange={(e) => setDevAddr(e.target.value)}
+                                className="border border-gray-200 rounded px-2 py-1 text-black w-24"
+                                placeholder="1"
+                              />
+                              <button
+                                onClick={handleDevAddrSave}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingDevAddr(false)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                ✗
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-black">{deviceDetails?.devAddr !== null && deviceDetails?.devAddr !== undefined ? deviceDetails.devAddr : 'Не задан'}</span>
+                              <button
+                                onClick={() => setEditingDevAddr(true)}
+                                className="text-blue-600 hover:text-blue-800 ml-2"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Статус устройства */}
+                      <div className="text-base text-black/50 flex items-center justify-between">
+                        Статус устройства: 
+                        <div className="flex items-center gap-2">
+                          {editingActive ? (
+                            <>
+                              <select
+                                value={deviceActive}
+                                onChange={(e) => setDeviceActive(e.target.value === 'true')}
+                                className="border border-gray-200 rounded px-2 py-1 text-black"
+                              >
+                                <option value={true}>Включено</option>
+                                <option value={false}>Выключено</option>
+                              </select>
+                              <button
+                                onClick={handleActiveSave}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setEditingActive(false)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                ✗
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className={`font-medium ${deviceDetails?.active ? 'text-green-600' : 'text-red-600'}`}>
+                                {deviceDetails?.active ? 'Включено' : 'Выключено'}
+                              </span>
+                              <button
+                                onClick={() => setEditingActive(true)}
                                 className="text-blue-600 hover:text-blue-800 ml-2"
                               >
                                 <Edit className="w-4 h-4" />

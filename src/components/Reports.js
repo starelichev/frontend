@@ -6,15 +6,46 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5165';
 const Reports = () => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [sortBy, setSortBy] = useState('date');
+    const [sortOrder, setSortOrder] = useState('desc');
+    // Получаем текущий месяц
+    const getCurrentMonthDates = () => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        
+        // Первый день текущего месяца
+        const firstDay = new Date(year, month, 1);
+        // Последний день текущего месяца
+        const lastDay = new Date(year, month + 1, 0);
+        
+        return {
+            start: firstDay.toISOString().split('T')[0],
+            end: lastDay.toISOString().split('T')[0]
+        };
+    };
+
+    const currentMonth = getCurrentMonthDates();
+    const [startDate, setStartDate] = useState(currentMonth.start);
+    const [endDate, setEndDate] = useState(currentMonth.end);
 
     useEffect(() => {
         fetchReports();
-    }, []);
+    }, [sortBy, sortOrder, startDate, endDate]);
 
     const fetchReports = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API_URL}/api/Report/list`);
+            console.log('Отправляем параметры:', { sortBy, sortOrder, startDate, endDate });
+            const response = await axios.get(`${API_URL}/api/Report/list`, {
+                params: {
+                    sortBy,
+                    sortOrder,
+                    periodType: 'custom',
+                    startDate,
+                    endDate
+                }
+            });
             setReports(response.data.reports || []);
         } catch (error) {
             console.error('Error fetching reports:', error);
@@ -47,6 +78,25 @@ const Reports = () => {
         }
     };
 
+    const handleSort = (field) => {
+        if (sortBy === field) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(field);
+            setSortOrder('desc');
+        }
+    };
+
+    const handleApplyFilters = () => {
+        fetchReports();
+    };
+
+    const resetToCurrentMonth = () => {
+        const currentMonth = getCurrentMonthDates();
+        setStartDate(currentMonth.start);
+        setEndDate(currentMonth.end);
+    };
+
     const handleDownload = async (reportId) => {
         try {
             const response = await axios.get(`${API_URL}/api/Report/download/${reportId}`, {
@@ -69,13 +119,23 @@ const Reports = () => {
 
     const formatDate = (dateString) => {
         const date = new Date(dateString);
+        // Принудительно используем локальную временную зону
         return date.toLocaleDateString('ru-RU', {
             day: '2-digit',
             month: '2-digit',
-            year: '2-digit'
-        }) + ' ' + date.toLocaleTimeString('ru-RU', {
+            year: '2-digit',
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        });
+    };
+
+    const formatTime = (dateString) => {
+        const date = new Date(dateString);
+        // Принудительно используем локальную временную зону
+        return date.toLocaleTimeString('ru-RU', {
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            second: '2-digit',
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
         });
     };
 
@@ -84,63 +144,8 @@ const Reports = () => {
             <div className="flex gap-6 h-full">
                 {/* Left Panel - Filters */}
                 <div className="w-80 bg-gray-50 rounded-lg p-4 flex-shrink-0">
-                    <h3 className="text-lg font-semibold mb-4">Группа объектов</h3>
+                    <h3 className="text-lg font-semibold mb-4">Фильтры</h3>
                     
-                    {/* Object Group Filter */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Группа объектов:
-                        </label>
-                        <select className="w-full p-2 border border-gray-300 rounded-md">
-                            <option value="">Все объекты</option>
-                            <option value="1">КВТ-Юг</option>
-                            <option value="2">КВТ-Север</option>
-                            <option value="3">КВТ-Запад</option>
-                        </select>
-                    </div>
-
-                    {/* Period Type Filter */}
-                    <div className="mb-4">
-                        <div className="space-y-2">
-                            <label className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="periodType"
-                                    value="new"
-                                    defaultChecked
-                                    className="mr-2"
-                                />
-                                <span className="text-sm">Только новые</span>
-                            </label>
-                            <label className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="periodType"
-                                    value="week"
-                                    className="mr-2"
-                                />
-                                <span className="text-sm">За неделю</span>
-                            </label>
-                            <label className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="periodType"
-                                    value="month"
-                                    className="mr-2"
-                                />
-                                <span className="text-sm">За месяц</span>
-                            </label>
-                            <label className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="periodType"
-                                    value="custom"
-                                    className="mr-2"
-                                />
-                                <span className="text-sm">За период:</span>
-                            </label>
-                        </div>
-                    </div>
 
                     {/* Custom Date Range */}
                     <div className="mb-4 space-y-2">
@@ -151,7 +156,8 @@ const Reports = () => {
                             <input
                                 type="date"
                                 className="w-full p-2 border border-gray-300 rounded-md"
-                                defaultValue="2025-09-06"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
                             />
                         </div>
                         <div>
@@ -161,14 +167,26 @@ const Reports = () => {
                             <input
                                 type="date"
                                 className="w-full p-2 border border-gray-300 rounded-md"
-                                defaultValue="2025-09-08"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
                             />
                         </div>
                     </div>
 
                     {/* Apply Button */}
-                    <button className="w-full bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 disabled:opacity-50">
+                    <button 
+                        onClick={handleApplyFilters}
+                        className="w-full bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 disabled:opacity-50 mb-2"
+                    >
                         Применить
+                    </button>
+
+                    {/* Reset to Current Month Button */}
+                    <button 
+                        onClick={resetToCurrentMonth}
+                        className="w-full bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 disabled:opacity-50"
+                    >
+                        Текущий месяц
                     </button>
                 </div>
 
@@ -181,8 +199,33 @@ const Reports = () => {
                             <table className="w-full min-w-[800px]">
                                 <thead className="bg-gray-50 sticky top-0">
                                     <tr>
-                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-64">Название файла</th>
-                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-48">Дата и время создания отчета</th>
+                                        <th 
+                                            className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-64 cursor-pointer hover:bg-gray-100"
+                                            onClick={() => handleSort('name')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                Название файла
+                                                {sortBy === 'name' && (
+                                                    <span className="text-xs">
+                                                        {sortOrder === 'asc' ? '↑' : '↓'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-32 cursor-pointer hover:bg-gray-100"
+                                            onClick={() => handleSort('date')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                Дата
+                                                {sortBy === 'date' && (
+                                                    <span className="text-xs">
+                                                        {sortOrder === 'asc' ? '↑' : '↓'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-32">Время</th>
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-64">Кто создал данный отчет</th>
                                     </tr>
                                 </thead>
@@ -204,6 +247,7 @@ const Reports = () => {
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-900">{formatDate(report.createdAt)}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-900">{formatTime(report.createdAt)}</td>
                                             <td className="px-4 py-3 text-sm text-gray-900">{report.createdByUserName} {report.createdByUserSurname}</td>
                                         </tr>
                                     ))}

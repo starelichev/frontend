@@ -230,7 +230,7 @@ function DeviceAccounting() {
     console.log('🔄 SignalR update received:', deviceData);
     
     setDevices(prevDevices => {
-      return prevDevices.map(device => {
+      const updatedDevices = prevDevices.map(device => {
         const updatedDevice = deviceData.find(d => d.deviceId === device.id);
         if (updatedDevice) {
           console.log(`📱 Updating device ${device.id}:`, updatedDevice);
@@ -252,6 +252,7 @@ function DeviceAccounting() {
             return {
               ...device,
               statusColor: updatedDevice.statusColor,
+              sortId: updatedDevice.sortId, // Обновляем SortId
               params: allParams // Сохраняем все параметры для модального окна
             };
           }
@@ -271,11 +272,19 @@ function DeviceAccounting() {
             return {
               ...device,
               statusColor: updatedDevice.statusColor,
+              sortId: updatedDevice.sortId, // Обновляем SortId
               params: formattedParams
             };
           }
         }
         return device;
+      });
+      
+      // Сортируем обновленные устройства по SortId
+      return updatedDevices.sort((a, b) => {
+        const aSortId = a.sortId ?? a.id;
+        const bSortId = b.sortId ?? b.id;
+        return aSortId - bSortId;
       });
     });
 
@@ -324,10 +333,15 @@ function DeviceAccounting() {
       // Сохраняем объекты и сортируем по ID для стабильности
       const sortedObjects = (response.data.objects || []).sort((a, b) => a.id - b.id);
       setObjects(sortedObjects);
-      // Извлекаем устройства из структуры ответа и сортируем по ID для стабильности
+      // Извлекаем устройства из структуры ответа и сортируем по SortId, затем по ID
       const allDevices = response.data.objects?.flatMap(obj => 
         obj.devices?.map(dev => ({ ...dev, object: obj.name })) || []
-      ).sort((a, b) => a.id - b.id) || []; // Сортируем по ID для стабильного порядка
+      ).sort((a, b) => {
+        // Сортируем по SortId, если есть, иначе по ID
+        const aSortId = a.sortId ?? a.id;
+        const bSortId = b.sortId ?? b.id;
+        return aSortId - bSortId;
+      }) || [];
       
       // Добавляем логирование для отладки
       console.log('📊 Devices loaded from API:', allDevices);
