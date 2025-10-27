@@ -412,7 +412,8 @@ function DeviceAccounting() {
           objectName: device.object,
           isActive: device.statusColor === 'green',
           lastReading: null,
-          parameters: device.params || []
+          parameters: device.params || [],
+          sortId: device.sortId
         };
         setSelectedDevice(fallbackDevice);
         setShowModal(true);
@@ -469,7 +470,7 @@ function DeviceAccounting() {
               </div>
               
               {/* Device Title */}
-              <h3 className="font-bold mb-3 text-sm text-black font-open-sans truncate">{dev.deviceName || dev.name || `Прибор ${dev.id}`}</h3>
+              <h3 className="font-bold mb-1 text-sm text-black font-open-sans truncate">{dev.deviceName || dev.name || `Прибор ${dev.id}`}</h3>
               
               {/* Divider Line */}
               <div className="w-full h-0 outline outline-1 outline-offset-[-0.50px] outline-black/10 mb-3"></div>
@@ -547,6 +548,10 @@ function DeviceAccounting() {
                       <div className="flex justify-between">
                         <span className="text-gray-600">Объект:</span>
                         <span className="font-medium">{selectedDevice.objectName || 'Не указан'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">ID сортировки:</span>
+                        <span className="font-medium">{selectedDevice.sortId || 'Не указан'}</span>
                       </div>
                     </div>
                   </div>

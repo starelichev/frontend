@@ -48,7 +48,13 @@ function DataVisualization() {
     const filtered = objects
       .filter(obj => selectedObjects.length === 0 || selectedObjects.includes(obj.id))
       .flatMap(obj => obj.devices)
-      .filter(device => selectedDeviceTypes.length === 0 || selectedDeviceTypes.includes(device.type));
+      .filter(device => selectedDeviceTypes.length === 0 || selectedDeviceTypes.includes(device.type))
+      .sort((a, b) => {
+        // Сортируем по SortId, если есть, иначе по ID
+        const aSortId = a.sortId ?? a.id;
+        const bSortId = b.sortId ?? b.id;
+        return aSortId - bSortId;
+      });
     
     setFilteredMeters(filtered);
     setSelectedMeters([]); // Сбрасываем выбранный счетчик при изменении фильтров

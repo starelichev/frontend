@@ -2,13 +2,12 @@ import React, { useState, useEffect } from "react";
 import logo from "./icons/logo.svg";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { X, User, Key, Link, Settings as SettingsIcon, Edit } from "lucide-react";
+import { X, User, Key, Link, Edit } from "lucide-react";
 
 const menu = [
   { label: "Профиль", icon: <User className="w-4 h-4" /> },
   { label: "Изменение пароля", icon: <Key className="w-4 h-4" /> },
   { label: "Объекты и счетчики", icon: <Link className="w-4 h-4" /> },
-  { label: "Подключение к серверу", icon: <SettingsIcon className="w-4 h-4" /> },
 ];
 
 const API_URL = process.env.REACT_APP_API_URL;
@@ -1157,20 +1156,6 @@ function Settings() {
                 </>
         )}
 
-        {active === 3 && (
-                <>
-                  <h2 className="text-xl font-semibold text-black mb-8">Подключение к серверу</h2>
-                  <div className="space-y-6">
-              <div>
-                      <label className="block text-base text-black/50 mb-2">IP-адреса</label>
-                      <input className="w-full h-15 px-6 py-4 bg-white/5 border border-gray-200 rounded-full text-base text-black" value="1111111111" readOnly />
-                    </div>
-                    <div className="pt-8">
-                      <button className="bg-gray-400 text-white px-8 py-2 rounded-full text-sm font-semibold">Сохранить</button>
-                    </div>
-              </div>
-                </>
-              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import * as signalR from '@microsoft/signalr';
 import icon1 from "./icons/1.svg";
 import icon2 from "./icons/2.svg";
 import icon3 from "./icons/3.svg";
@@ -33,6 +34,7 @@ function Dashboard() {
   const [activeMenuItem, setActiveMenuItem] = useState(1); // 1 = Приборы учёта, 2 = Визуализация данных
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [connection, setConnection] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -57,6 +59,39 @@ function Dashboard() {
     const userData = JSON.parse(localStorage.getItem("user"));
     setUser(userData);
     setIsAdmin(userData?.isAdmin || false);
+
+    // Создаем подключение к SignalR
+    const newConnection = new signalR.HubConnectionBuilder()
+      .withUrl(`${API_URL}/notificationHub`, {
+        withCredentials: true
+      })
+      .withAutomaticReconnect()
+      .build();
+
+    // Обработчик обновления расхода за сегодня
+    newConnection.on('UpdateConsumptionToday', (dailyData) => {
+      console.log('Received consumption today update:', dailyData);
+      setMetrics(prev => ({
+        ...prev,
+        dailyConsumption: dailyData
+      }));
+    });
+
+    // Запускаем подключение
+    newConnection.start()
+      .then(() => {
+        console.log('SignalR Connected for Dashboard');
+        newConnection.invoke('JoinNotificationGroup');
+      })
+      .catch(err => console.error('SignalR Connection Error: ', err));
+
+    setConnection(newConnection);
+
+    return () => {
+      if (newConnection) {
+        newConnection.stop();
+      }
+    };
   }, []);
 
   const menuItems = [
@@ -229,20 +264,6 @@ function Dashboard() {
 
             {/* User Menu */}
             <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
-              <button 
-                className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                onClick={() => {
-                  console.log('Обновляем данные дашборда...');
-                  axios.get(`${API_URL}/api/Dashboard/metrics`).then(res => {
-                    console.log('Обновленные данные:', res.data);
-                    setMetrics(res.data);
-                  }).catch(error => {
-                    console.error('Error refreshing dashboard metrics:', error);
-                  });
-                }}
-              >
-                Обновить
-              </button>
               
               <div className="w-40 h-11 px-4 py-1 rounded-[100px] outline outline-1 outline-offset-[-1px] outline-gray-200 inline-flex justify-start items-center gap-2.5 cursor-pointer" onClick={() => navigate('/settings')}>
                 <div className="w-[0.84px] h-[0.67px]" />
@@ -270,23 +291,6 @@ function Dashboard() {
       </div>
 
 
-      
-      {/* Footer */}
-      <div className="w-full h-11 bg-white/70 rounded-[10px] border border-neutral-400/50 flex flex-col lg:flex-row items-center justify-between px-4 mt-4 mx-4 xl:ml-[30px] gap-2">
-        <div className="text-sm text-gray-700 font-open-sans">
-          IP-адрес: 198748385
-        </div>
-        <div className="text-sm text-gray-700 font-open-sans">
-          Статус клиента: <span className="text-teal-500">Подключен</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-700 font-open-sans">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-            <polyline points="12,6 12,12 16,14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          12:00
-        </div>
-      </div>
     </div>
   );
 }
