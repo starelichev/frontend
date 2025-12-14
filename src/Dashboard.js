@@ -190,7 +190,7 @@ function Dashboard() {
               <div className="flex flex-col items-center gap-1">
                 <div className="justify-start text-black/50 text-xs font-normal font-open-sans leading-none">Расход за месяц</div>
                 <select 
-                  className="text-xs border rounded px-2 py-1 w-32"
+                  className="text-xs border rounded px-2 py-1 w-48"
                   onChange={(e) => {
                     const selectedSite = metrics.monthlyConsumption?.find(site => site.siteName === e.target.value);
                     if (selectedSite) {
@@ -217,7 +217,7 @@ function Dashboard() {
               <div className="flex flex-col items-center gap-1">
                 <div className="justify-start text-black/50 text-xs font-normal font-open-sans leading-none">Расход за день</div>
                 <select 
-                  className="text-xs border rounded px-2 py-1 w-32"
+                  className="text-xs border rounded px-2 py-1 w-48"
                   onChange={(e) => {
                     const selectedSite = metrics.dailyConsumption?.find(site => site.siteName === e.target.value);
                     if (selectedSite) {
@@ -244,7 +244,7 @@ function Dashboard() {
               <div className="flex flex-col items-center gap-1">
                 <div className="justify-start text-black/50 text-xs font-normal font-open-sans leading-none">Расход за вчера</div>
                 <select 
-                  className="text-xs border rounded px-2 py-1 w-32"
+                  className="text-xs border rounded px-2 py-1 w-48"
                   onChange={(e) => {
                     const selectedSite = metrics.previousDayConsumption?.find(site => site.siteName === e.target.value);
                     if (selectedSite) {
